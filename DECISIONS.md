@@ -34,3 +34,11 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Upsert for nutrition (`ON CONFLICT ... DO UPDATE`).** Re-saving a dish updates it instead of erroring or duplicating.
 - **Allergens stored as JSON text; dates as ISO text (`2026-10-12`).** SQLite has no list or date type, and ISO dates sort correctly as text.
 - **Tests use `:memory:` databases.** Each test gets a fresh, empty DB with no files to clean up.
+
+## Daily scrape
+- **One script (`scraper/daily_scrape.py`) wires fetcher → parsers → database.** Run by hand with `python -m scraper.daily_scrape [--date YYYY-MM-DD]`; scheduling it (cron) waits until deploy.
+- **A failed menu page stops that hall *before* `save_menu`.** `save_menu` replaces the whole day, so saving nothing would wipe a good menu from an earlier run. Exit code 1 so a scheduler can notice.
+- **A failed label is logged and skipped, not fatal.** The dish still appears with `nutrition=None`, and the next run retries it because `has_nutrition` is still False.
+- **Each recipe ID's label is fetched once per run** (same dish at lunch and dinner). The first run is about 300 labels × 2s ≈ 10 min; later runs only fetch new dishes.
+- **Summary counts saved rows, not parsed ones.** UMD lists some dishes at several stations in one meal (645 parsed → 533 saved for South Campus), and the DB keeps one per meal.
+- **`HALLS` dict, South Campus = 16** (ID taken from the site's hall dropdown). Adding a hall later means adding one line.
