@@ -75,3 +75,7 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Hall switch ignores late answers (a `stale` flag in the effect cleanup).** Otherwise a slow South Campus response arriving after you picked Yahentamitsi would show the wrong menu.
 - **State is reset in the dropdown's change handler, not inside the effect** (the linter's `set-state-in-effect` rule): React suggests updating state from the event that caused the change, which avoids an extra render.
 - **Component tests mock the whole `api.js` with `vi.mock`,** keeping the real `ApiError`. `vi.resetAllMocks()` before each test so fake answers can't leak between tests.
+- **One click logs a dish: tapping a portion button (0.5x/1x/1.5x/2x) logs right away,** no separate "Log" button. Fewer taps in a dining hall line; a mistake is fixed by deleting it (step 4 dashboard).
+- **Logging lives in `MenuView` (`handleLog`); `MenuList`/`PortionButtons` just call `onLog`.** One component talks to the API; the rest only display. This is "lifting state up" in React.
+- **Buttons are disabled while that dish's request is in flight (`loggingId`),** so a double-click can't log twice. Dishes with no nutrition get no buttons (the API would 404 anyway).
+- **The confirmation uses the calories the server sent back,** not ones computed in the browser, so it shows exactly what was saved.

@@ -1,16 +1,19 @@
-// Shows one day's menu, grouped by meal. Display only: it gets the dishes as props and
-// doesn't fetch anything, which keeps it simple to test.
+// Shows one day's menu, grouped by meal, with portion buttons on each dish. Display only:
+// it gets the dishes and an onLog callback as props and never calls the API itself.
 
 import { groupByMeal } from '../menu.js'
+import PortionButtons from './PortionButtons.jsx'
 
 /**
  * A hall's menu as sections (Breakfast, Lunch, ...) of dish rows.
  *
- * @param {{items: object[]}} props - Dishes from getMenu().
+ * @param {{items: object[], loggingId: string|null, onLog: (item: object, servings: number) => void}} props
+ *   items: dishes from getMenu(). loggingId: recipe_id currently being logged (its buttons are
+ *   disabled). onLog: called when a portion button is clicked.
  * @returns {JSX.Element}
- * @example <MenuList items={menu.items} />
+ * @example <MenuList items={menu.items} loggingId={null} onLog={handleLog} />
  */
-export default function MenuList({ items }) {
+export default function MenuList({ items, loggingId, onLog }) {
   if (items.length === 0) {
     return <p className="notice">No menu posted for today yet.</p>
   }
@@ -20,7 +23,12 @@ export default function MenuList({ items }) {
       <h2>{meal}</h2>
       <ul className="dish-list">
         {mealItems.map((item) => (
-          <DishRow key={item.recipe_id} item={item} />
+          <DishRow
+            key={item.recipe_id}
+            item={item}
+            isLogging={item.recipe_id === loggingId}
+            onLog={(servings) => onLog(item, servings)}
+          />
         ))}
       </ul>
     </section>
@@ -28,12 +36,14 @@ export default function MenuList({ items }) {
 }
 
 /**
- * One dish: its name and station, plus calories and protein per serving if we have them.
+ * One dish: name, station, calories and protein per serving, and portion buttons.
+ * Dishes with no nutrition get no buttons, since the API can't log macros it doesn't know.
  *
- * @param {{item: {name: string, station: string, nutrition: object|null}}} props
+ * @param {{item: {name: string, station: string, nutrition: object|null}, isLogging: boolean,
+ *   onLog: (servings: number) => void}} props
  * @returns {JSX.Element}
  */
-function DishRow({ item }) {
+function DishRow({ item, isLogging, onLog }) {
   const { nutrition } = item
   return (
     <li className={nutrition ? 'dish' : 'dish dish--no-data'}>
@@ -41,11 +51,14 @@ function DishRow({ item }) {
         <span className="dish-name">{item.name}</span>
         <span className="dish-station">{item.station}</span>
       </div>
-      <span className="dish-macros">
-        {nutrition
-          ? `${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein`
-          : 'No nutrition info'}
-      </span>
+      <div className="dish-macros">
+        <span>
+          {nutrition
+            ? `${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein`
+            : 'No nutrition info'}
+        </span>
+        {nutrition && <PortionButtons dishName={item.name} disabled={isLogging} onLog={onLog} />}
+      </div>
     </li>
   )
 }

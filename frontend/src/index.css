@@ -74,3 +74,35 @@ h1 {
 .dish--no-data {
   opacity: 0.55;
 }
+
+.notice--success {
+  color: #1b7a3a;
+}
+
+.dish-macros {
+  text-align: right;
+}
+
+.portions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.portions button {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+
+.portions button:hover:not(:disabled) {
+  border-color: var(--umd-red);
+  color: var(--umd-red);
+}
+
+.portions button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
