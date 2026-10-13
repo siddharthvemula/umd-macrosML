@@ -17,8 +17,8 @@ from scraper.label_parser import LabelPageFormatError, NutritionNotAvailableErro
 from scraper.menu_parser import MenuItem, MenuPageFormatError, parse_menu_page
 
 # Hall name -> UMD's locationNum (from the hall dropdown on nutrition.umd.edu).
-# Phase 1 scrapes one hall; adding another later is one line here.
-HALLS: Dict[str, int] = {"South Campus": 16}
+# Adding a hall is one line here; the API picks it up automatically.
+HALLS: Dict[str, int] = {"South Campus": 16, "Yahentamitsi": 19}
 
 logger = logging.getLogger(__name__)
 

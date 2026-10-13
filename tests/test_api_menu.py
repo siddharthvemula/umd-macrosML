@@ -27,10 +27,13 @@ def seed(db_path: str, day: date, items: list[MenuItem]) -> None:
     conn.close()
 
 
-def test_halls_lists_south_campus(client):
+def test_halls_lists_every_scraped_hall(client):
     response = client.get("/halls")
     assert response.status_code == 200
-    assert response.json() == [{"id": "south_campus", "name": "South Campus"}]
+    assert response.json() == [
+        {"id": "south_campus", "name": "South Campus"},
+        {"id": "yahentamitsi", "name": "Yahentamitsi"},
+    ]
 
 
 def test_menu_returns_items_with_nutrition(client, db_path):

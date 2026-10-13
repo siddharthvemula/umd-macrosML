@@ -42,6 +42,7 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Each recipe ID's label is fetched once per run** (same dish at lunch and dinner). The first run is about 300 labels × 2s ≈ 10 min; later runs only fetch new dishes.
 - **Summary counts saved rows, not parsed ones.** UMD lists some dishes at several stations in one meal (645 parsed → 533 saved for South Campus), and the DB keeps one per meal.
 - **`HALLS` dict, South Campus = 16** (ID taken from the site's hall dropdown). Adding a hall later means adding one line.
+- **Added Yahentamitsi = 19** (same dropdown). Hall name kept short ("Yahentamitsi", not "Yahentamitsi Dining Hall") so its API slug is `yahentamitsi`.
 - **"No nutrition published" is its own outcome (`NutritionNotAvailableError`), not a failure.** Same idea as "no menu" vs "broken page": UMD shows a "Nutritional Information is not available" box for some dishes (e.g. Maryland Crab Soup), and that's normal. A missing macro *without* that box still counts as a broken page. Detected by the `labelnotavailable` CSS class, not the text, because normal labels say "not available" in a footnote. It's a subclass of `LabelPageFormatError` so older `except` blocks still catch it.
 - **No-data dishes aren't saved, so every run checks them again.** UMD may add the data later, and it costs one request per dish per day.
 
