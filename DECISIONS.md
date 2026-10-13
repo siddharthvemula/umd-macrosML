@@ -79,3 +79,8 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Logging lives in `MenuView` (`handleLog`); `MenuList`/`PortionButtons` just call `onLog`.** One component talks to the API; the rest only display. This is "lifting state up" in React.
 - **Buttons are disabled while that dish's request is in flight (`loggingId`),** so a double-click can't log twice. Dishes with no nutrition get no buttons (the API would 404 anyway).
 - **The confirmation uses the calories the server sent back,** not ones computed in the browser, so it shows exactly what was saved.
+- **Dashboard split like the menu: `DashboardView` (fetches, deletes) + display-only `MacroTotals` and `LoggedMealsList`.** Summary and logs load together with `Promise.all`, one wait instead of two.
+- **Screens stay in sync through a counter in `App` (`logCount` → `refreshKey`), not by moving all meal data into `App`.** The menu only needs to say "something changed"; the dashboard reloads itself. `MenuView` calls `onLogged` only after a *successful* log.
+- **After a delete, totals are reloaded from the server, not subtracted in the browser.** Same rule as the log banner: show what the server has, no rounding drift.
+- **Totals shown as whole numbers** (the API keeps 1 decimal). A tenth of a gram is noise on a daily total.
+- **No daily goals/progress bars and no chart library yet.** There's nowhere to store goals in the backend; four number tiles need no install.

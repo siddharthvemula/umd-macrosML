@@ -9,10 +9,12 @@ import MenuList from './MenuList.jsx'
 /**
  * Loads the halls, then today's menu for whichever hall is selected, and logs dishes.
  *
+ * @param {{onLogged?: () => void}} props - onLogged: called after each successful log, so
+ *   App can tell the dashboard to reload.
  * @returns {JSX.Element}
- * @example <MenuView />
+ * @example <MenuView onLogged={() => setLogCount((count) => count + 1)} />
  */
-export default function MenuView() {
+export default function MenuView({ onLogged }) {
   const [halls, setHalls] = useState([])
   const [hallId, setHallId] = useState(null)
   const [menu, setMenu] = useState(null)
@@ -70,6 +72,7 @@ export default function MenuView() {
       const log = await logMeal(item.recipe_id, servings)
       // Use the server's calories (already multiplied by servings): it's what was saved.
       setLogResult({ ok: true, text: `Logged ${servings}x ${item.name} (${Math.round(log.calories)} cal).` })
+      onLogged?.()
     } catch (err) {
       setLogResult({ ok: false, text: `Couldn't log ${item.name}: ${err.message}` })
     } finally {

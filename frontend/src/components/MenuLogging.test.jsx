@@ -49,6 +49,22 @@ describe('logging a dish', () => {
     expect(await screen.findByText('Logged 1.5x Banana (165 cal).')).toBeInTheDocument()
   })
 
+  it('tells App about a successful log (so the dashboard reloads), but not a failed one', async () => {
+    const onLogged = vi.fn()
+    render(<MenuView onLogged={onLogged} />)
+    const bananaButtons = await screen.findByRole('group', { name: 'Log Banana' })
+
+    logMeal.mockResolvedValueOnce({ id: 1, calories: 109.8 })
+    await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+    await screen.findByText('Logged 1x Banana (110 cal).')
+    expect(onLogged).toHaveBeenCalledTimes(1)
+
+    logMeal.mockRejectedValueOnce(new ApiError('Server error.', 500))
+    await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+    await screen.findByText("Couldn't log Banana: Server error.")
+    expect(onLogged).toHaveBeenCalledTimes(1)
+  })
+
   it('offers all four portions', async () => {
     const bananaButtons = await renderMenu()
 
