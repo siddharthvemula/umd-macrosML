@@ -24,3 +24,53 @@ body {
 h1 {
   color: var(--umd-red);
 }
+
+.hall-picker select {
+  margin-left: 4px;
+  padding: 4px 8px;
+  font-size: 1rem;
+}
+
+.notice {
+  color: var(--muted);
+}
+
+.notice--error {
+  color: var(--umd-red);
+}
+
+.meal h2 {
+  margin: 24px 0 8px;
+  font-size: 1.2rem;
+}
+
+.dish-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dish {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.dish-name {
+  display: block;
+  font-weight: 600;
+}
+
+.dish-station,
+.dish-macros {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Dishes UMD published no nutrition for: still listed, but faded. */
+.dish--no-data {
+  opacity: 0.55;
+}

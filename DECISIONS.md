@@ -70,3 +70,8 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Vite dev proxy (`/api/*` → FastAPI on :8000), not CORS.** The browser sees one origin, so the backend needed no changes. At deploy we'll serve both from one domain or add CORS then.
 - **Every backend call lives in `src/api.js`.** Components never build URLs; tests fake one module. All failures become one `ApiError` (message + status), same idea as the scraper's `FetchError`. FastAPI's `detail` string becomes the message; "can't reach the server" has `status: null`.
 - **Tests: Vitest + Testing Library + jsdom,** plus `jest-dom` (matchers like `toBeInTheDocument`) and `user-event` (realistic clicks/typing). API tests stub the global `fetch` with `vi.stubGlobal`, so no backend runs.
+- **Menu screen split into `MenuView` (fetches, holds state) and `MenuList` (display only), with grouping in a pure `groupByMeal()` (`menu.js`).** The pure function is tested without React; the display component can't get loading logic tangled into it.
+- **Meals sorted Breakfast → Brunch → Lunch → Dinner, unknown meal names last.** The API's order isn't guaranteed to be the day's order.
+- **Hall switch ignores late answers (a `stale` flag in the effect cleanup).** Otherwise a slow South Campus response arriving after you picked Yahentamitsi would show the wrong menu.
+- **State is reset in the dropdown's change handler, not inside the effect** (the linter's `set-state-in-effect` rule): React suggests updating state from the event that caused the change, which avoids an extra render.
+- **Component tests mock the whole `api.js` with `vi.mock`,** keeping the real `ApiError`. `vi.resetAllMocks()` before each test so fake answers can't leak between tests.
