@@ -1,12 +1,14 @@
 # Tests for db/database.py. Each test uses a fresh in-memory database,
 # so they're fast, isolated from each other, and leave no files behind.
 
-from datetime import date
+from dataclasses import replace
+from datetime import date, timedelta
 
 import pytest
 
 from db.database import (
-    connect, create_tables, get_menu, get_nutrition, has_nutrition, save_menu, save_nutrition,
+    connect, create_tables, delete_meal_log, get_daily_totals, get_meal_logs, get_menu,
+    get_nutrition, has_nutrition, log_meal, save_menu, save_nutrition,
 )
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
@@ -115,3 +117,59 @@ def test_connect_creates_db_file_and_folder(tmp_path):
     db_path = tmp_path / "data" / "macros.db"
     connect(str(db_path)).close()
     assert db_path.exists()
+
+
+# --- Meal logs ---
+
+
+def test_logged_meal_copies_macros_per_serving(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    log = log_meal(conn, DAY, BANANA.recipe_id, 2)
+
+    assert (log.name, log.servings, log.calories, log.date) == ("Banana", 2, 109.8, DAY)
+    assert get_meal_logs(conn, DAY) == [log]
+
+
+def test_logging_dish_without_nutrition_saves_nothing(conn):
+    assert log_meal(conn, DAY, "nope*1", 1) is None
+    assert get_meal_logs(conn, DAY) == []
+
+
+def test_rescraped_dish_does_not_change_past_logs(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    log_meal(conn, DAY, BANANA.recipe_id, 1)
+    save_nutrition(conn, BANANA.recipe_id, replace(make_label(), calories=500.0))
+
+    assert get_meal_logs(conn, DAY)[0].calories == 109.8
+
+
+def test_meal_logs_only_for_requested_day(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    log_meal(conn, DAY, BANANA.recipe_id, 1)
+    assert get_meal_logs(conn, DAY + timedelta(days=1)) == []
+
+
+def test_delete_meal_log(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    log = log_meal(conn, DAY, BANANA.recipe_id, 1)
+
+    assert delete_meal_log(conn, log.id) is True
+    assert get_meal_logs(conn, DAY) == []
+    assert delete_meal_log(conn, log.id) is False  # already gone
+
+
+def test_daily_totals_multiply_by_servings(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    save_nutrition(conn, BURGER.recipe_id, replace(make_label("Burger"), calories=240.8, protein_g=15.0))
+    log_meal(conn, DAY, BANANA.recipe_id, 2)
+    log_meal(conn, DAY, BURGER.recipe_id, 0.5)
+
+    totals = get_daily_totals(conn, DAY)
+    assert totals.calories == pytest.approx(109.8 * 2 + 240.8 * 0.5)
+    assert totals.protein_g == pytest.approx(1.3 * 2 + 15.0 * 0.5)
+    assert totals.meal_count == 2
+
+
+def test_daily_totals_for_empty_day_are_zero(conn):
+    totals = get_daily_totals(conn, DAY)
+    assert (totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.meal_count) == (0, 0, 0, 0, 0)

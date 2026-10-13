@@ -1,6 +1,7 @@
-# The app's SQLite database: where scraped menus and nutrition are stored.
-# The scraper writes into it (save_menu, save_nutrition) and the backend will read
-# from it (get_menu, get_nutrition). It also acts as our cache: has_nutrition lets the scraper skip
+# The app's SQLite database: where scraped menus and nutrition are stored, plus the
+# meals a student logs. The scraper writes menus into it (save_menu, save_nutrition)
+# and the backend reads them (get_menu, get_nutrition) and manages meal logs
+# (log_meal, get_meal_logs, delete_meal_log, get_daily_totals). It also acts as our cache: has_nutrition lets the scraper skip
 # dishes whose label we already have, so we don't re-download them from UMD.
 
 import json
@@ -50,6 +51,21 @@ CREATE TABLE IF NOT EXISTS menu_entries (
     recipe_id TEXT NOT NULL,
     UNIQUE (date, hall, meal, recipe_id)
 );
+
+-- One row per dish a student logged. The macros are copied from items at log time
+-- (per serving), so re-scraping a dish later never changes a past log.
+CREATE TABLE IF NOT EXISTS meal_logs (
+    id        INTEGER PRIMARY KEY,
+    date      TEXT NOT NULL,  -- campus date the meal counts toward, ISO format
+    recipe_id TEXT NOT NULL,
+    name      TEXT NOT NULL,
+    servings  REAL NOT NULL,  -- e.g. 1.5 for one and a half servings
+    calories  REAL NOT NULL,
+    protein_g REAL NOT NULL,
+    carbs_g   REAL NOT NULL,
+    fat_g     REAL NOT NULL,
+    logged_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP  -- UTC
+);
 """
 
 NUTRITION_COLUMNS = [
@@ -73,6 +89,43 @@ class MenuRow:
     meal: str
     # None means the label hasn't been scraped yet (e.g. its download failed).
     nutrition: Optional[NutritionLabel]
+
+
+@dataclass
+class MealLog:
+    """One logged dish. Macros are per serving; multiply by servings for the total.
+
+    Example:
+        MealLog(id=1, date=date(2026, 10, 12), recipe_id="111*1", name="Banana",
+                servings=2.0, calories=109.8, protein_g=1.3, carbs_g=28.2, fat_g=0.4,
+                logged_at="2026-10-12 16:30:00")
+    """
+
+    id: int
+    date: date
+    recipe_id: str
+    name: str
+    servings: float
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    logged_at: str
+
+
+@dataclass
+class DailyTotals:
+    """A day's macro totals across all logged dishes (servings already applied).
+
+    Example:
+        DailyTotals(calories=829.2, protein_g=27.4, carbs_g=104.4, fat_g=10.3, meal_count=2)
+    """
+
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    meal_count: int
 
 
 def connect(path: str = str(DEFAULT_DB_PATH), check_same_thread: bool = True) -> sqlite3.Connection:
@@ -233,3 +286,88 @@ def _row_to_menu_row(row: sqlite3.Row) -> MenuRow:
         meal=row["meal"],
         nutrition=nutrition,
     )
+
+
+def log_meal(conn: sqlite3.Connection, day: date, recipe_id: str, servings: float) -> Optional[MealLog]:
+    """Log that a student ate `servings` of a dish on `day`.
+
+    Returns:
+        The saved MealLog, or None (and nothing saved) if we have no nutrition for
+        this dish, since we can't count macros we don't know.
+
+    Example:
+        log_meal(conn, date(2026, 10, 12), "111*1", 1.5).calories  # -> 109.8 (per serving)
+    """
+    label = get_nutrition(conn, recipe_id)
+    if label is None:
+        return None
+    with conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO meal_logs (date, recipe_id, name, servings, calories, protein_g, carbs_g, fat_g)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (day.isoformat(), recipe_id, label.name, servings,
+             label.calories, label.protein_g, label.carbs_g, label.fat_g),
+        )
+    # Read the row back so the result includes the id and logged_at SQLite filled in.
+    row = conn.execute("SELECT * FROM meal_logs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return _row_to_meal_log(row)
+
+
+def get_meal_logs(conn: sqlite3.Connection, day: date) -> List[MealLog]:
+    """Get every dish logged on `day`, oldest first. An empty list if none.
+
+    Example:
+        [log.name for log in get_meal_logs(conn, date(2026, 10, 12))]  # -> ["Banana", ...]
+    """
+    rows = conn.execute(
+        "SELECT * FROM meal_logs WHERE date = ? ORDER BY id", (day.isoformat(),)
+    ).fetchall()
+    return [_row_to_meal_log(row) for row in rows]
+
+
+def delete_meal_log(conn: sqlite3.Connection, log_id: int) -> bool:
+    """Delete one meal log.
+
+    Returns:
+        True if it was deleted, False if no log has that id.
+
+    Example:
+        delete_meal_log(conn, 1)  # -> True, then False if called again
+    """
+    with conn:
+        cursor = conn.execute("DELETE FROM meal_logs WHERE id = ?", (log_id,))
+    return cursor.rowcount > 0
+
+
+def get_daily_totals(conn: sqlite3.Connection, day: date) -> DailyTotals:
+    """Add up a day's macros, multiplying each dish by its servings.
+
+    Returns:
+        The totals. A day with nothing logged gives all zeros.
+
+    Example:
+        # 2 bananas (109.8 cal each) + 1 burger (240.8 cal)
+        get_daily_totals(conn, date(2026, 10, 12)).calories  # -> 460.4
+    """
+    # SUM over zero rows is NULL in SQL, so COALESCE turns that into 0.
+    row = conn.execute(
+        """
+        SELECT COALESCE(SUM(calories * servings), 0)  AS calories,
+               COALESCE(SUM(protein_g * servings), 0) AS protein_g,
+               COALESCE(SUM(carbs_g * servings), 0)   AS carbs_g,
+               COALESCE(SUM(fat_g * servings), 0)     AS fat_g,
+               COUNT(*)                               AS meal_count
+        FROM meal_logs WHERE date = ?
+        """,
+        (day.isoformat(),),
+    ).fetchone()
+    return DailyTotals(**dict(row))
+
+
+def _row_to_meal_log(row: sqlite3.Row) -> MealLog:
+    """Turn one meal_logs row into a MealLog (parsing the ISO date text back into a date)."""
+    values = dict(row)
+    values["date"] = date.fromisoformat(values["date"])
+    return MealLog(**values)

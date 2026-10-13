@@ -1,10 +1,10 @@
-# The shapes of the API's JSON responses (Pydantic models). They're kept separate
+# The shapes of the API's JSON requests and responses (Pydantic models). They're kept separate
 # from the database's dataclasses so the database can change without breaking the
 # frontend. FastAPI also uses them to validate output and build the /docs page.
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HallOut(BaseModel):
@@ -66,3 +66,51 @@ class MenuOut(BaseModel):
     hall: str
     date: date
     items: list[MenuItemOut]
+
+
+class MealLogIn(BaseModel):
+    """The request body for logging a meal.
+
+    Example JSON: {"recipe_id": "111*1", "servings": 1.5}  (date defaults to today)
+    """
+
+    recipe_id: str
+    # Any portion in (0, 5]: the UI offers 0.5/1/1.5/2, but ML v2 may estimate e.g. 1.3.
+    servings: float = Field(gt=0, le=5)
+    # alias: the JSON key is "date", but a field named `date` would hide the date type.
+    log_date: date | None = Field(None, alias="date")
+
+
+class MealLogOut(BaseModel):
+    """One logged dish, with macros already multiplied by servings.
+
+    Example JSON: {"id": 1, "date": "2026-10-12", "recipe_id": "111*1", "name": "Banana",
+                   "servings": 2.0, "calories": 219.6, "protein_g": 2.6, "carbs_g": 56.4,
+                   "fat_g": 0.8, "logged_at": "2026-10-12 16:30:00"}
+    """
+
+    id: int
+    date: date
+    recipe_id: str
+    name: str
+    servings: float
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    logged_at: str
+
+
+class DailySummaryOut(BaseModel):
+    """A day's macro totals for the dashboard.
+
+    Example JSON: {"date": "2026-10-12", "calories": 460.4, "protein_g": 17.6,
+                   "carbs_g": 88.4, "fat_g": 7.1, "meal_count": 2}
+    """
+
+    date: date
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    meal_count: int

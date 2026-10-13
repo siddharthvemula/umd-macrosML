@@ -56,3 +56,10 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Kept `httpx` for `TestClient`, didn't switch to `httpx2` yet.** Starlette shows a deprecation warning, but the tests work fine; we'll switch when it actually breaks or during a dependency upgrade.
 - **`GET /items/{recipe_id}` returns 404 when we have no label,** whether the ID is wrong or the dish's label just hasn't been scraped. The frontend treats both the same ("no nutrition info").
 - **Shared API test fixtures live in `tests/conftest.py`,** which pytest loads automatically, so each API test file gets the same `client` (temp DB + fixed date) without copying it.
+- **Meal logs copy the dish's macros at log time (`meal_logs` table), per serving, plus `servings`.** A log is history: re-scraping a dish must not change yesterday's totals. Storing per-serving + servings (not pre-multiplied totals) keeps the raw facts, so "edit servings" can be added later. Only the 4 macros are copied; the full label stays in `items`.
+- **Can't log a dish with no stored nutrition (404).** We can't count macros we don't know.
+- **Daily totals are summed in SQL (`SUM(calories * servings)`, `COALESCE` → 0 for empty days),** not in Python. The database does the adding, and it's one query however many meals there are.
+- **Servings: any number in (0, 5], validated by Pydantic `Field(gt=0, le=5)`.** The 0.5/1/1.5/2 buttons are a frontend choice; ML v2 will estimate portions like 1.3.
+- **Round to 1 decimal only in the API's output (`round_macro`).** The DB keeps exact values so rounding errors don't add up; the JSON shows `164.7` instead of `164.70000000000002`.
+- **`POST` returns 201 Created, `DELETE` returns 204 No Content,** the standard HTTP codes for "made something" and "done, nothing to send back".
+- **`POST /meals` takes an optional `date`** so last night's dinner can be logged after midnight. Left out for now: `user_id` (single user until deploy), a breakfast/lunch/dinner field, and editing a log (delete + re-log).
