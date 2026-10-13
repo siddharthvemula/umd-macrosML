@@ -1,0 +1,26 @@
+/* Global styles for the whole app. Plain CSS: a few shared colors as variables, then layout. */
+
+:root {
+  --umd-red: #e21833;
+  --text: #1f1f1f;
+  --muted: #6b6b6b;
+  --border: #dddddd;
+  --background: #fafafa;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+h1 {
+  color: var(--umd-red);
+}

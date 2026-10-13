@@ -64,3 +64,9 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Round to 1 decimal only in the API's output (`round_macro`).** The DB keeps exact values so rounding errors don't add up; the JSON shows `164.7` instead of `164.70000000000002`.
 - **`POST` returns 201 Created, `DELETE` returns 204 No Content,** the standard HTTP codes for "made something" and "done, nothing to send back".
 - **`POST /meals` takes an optional `date`** so last night's dinner can be logged after midnight. Left out for now: `user_id` (single user until deploy), a breakfast/lunch/dinner field, and editing a log (delete + re-log).
+
+## Frontend
+- **React + Vite in `frontend/`, plain JavaScript (not TypeScript), plain CSS (not Tailwind).** Fewer new things to learn at once; both can be added later.
+- **Vite dev proxy (`/api/*` → FastAPI on :8000), not CORS.** The browser sees one origin, so the backend needed no changes. At deploy we'll serve both from one domain or add CORS then.
+- **Every backend call lives in `src/api.js`.** Components never build URLs; tests fake one module. All failures become one `ApiError` (message + status), same idea as the scraper's `FetchError`. FastAPI's `detail` string becomes the message; "can't reach the server" has `status: null`.
+- **Tests: Vitest + Testing Library + jsdom,** plus `jest-dom` (matchers like `toBeInTheDocument`) and `user-event` (realistic clicks/typing). API tests stub the global `fetch` with `vi.stubGlobal`, so no backend runs.
