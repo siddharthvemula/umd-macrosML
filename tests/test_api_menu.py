@@ -1,19 +1,13 @@
-# Tests for the /halls and /menu endpoints in api/main.py. Each test gets its own
-# temporary database file and a fixed "today", swapped in through FastAPI's
-# dependency_overrides, so tests never touch the real database or the real clock.
+# Tests for the /halls and /menu endpoints in api/main.py. The `client` and `db_path`
+# fixtures come from conftest.py: a temp database and a fixed "today" (2026-10-12).
 
 from datetime import date
 
-import pytest
-from fastapi.testclient import TestClient
-
-from api.deps import get_db, get_today
-from api.main import app
+from conftest import TODAY
 from db.database import connect, save_menu, save_nutrition
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
 
-TODAY = date(2026, 10, 12)
 HALL = "South Campus"
 
 BANANA_LABEL = NutritionLabel(
@@ -23,33 +17,6 @@ BANANA_LABEL = NutritionLabel(
 )
 BANANA = MenuItem(name="Banana", recipe_id="111*1", station="Fruit", meal="Breakfast")
 BURGER = MenuItem(name="Fresh Chicken Burger", recipe_id="080603*4", station="Broiler Works", meal="Lunch")
-
-
-@pytest.fixture
-def db_path(tmp_path):
-    """Path to a fresh, empty database file for this test (pytest deletes tmp_path after)."""
-    path = str(tmp_path / "test.db")
-    connect(path).close()  # creates the tables
-    return path
-
-
-@pytest.fixture
-def client(db_path):
-    """A TestClient whose requests use the test database and a fixed date of TODAY."""
-
-    def get_test_db():
-        # A file, not ":memory:": each in-memory connection is its own separate,
-        # empty database, so data seeded by the test wouldn't be visible here.
-        conn = connect(db_path, check_same_thread=False)
-        try:
-            yield conn
-        finally:
-            conn.close()
-
-    app.dependency_overrides[get_db] = get_test_db
-    app.dependency_overrides[get_today] = lambda: TODAY
-    yield TestClient(app)
-    app.dependency_overrides.clear()  # don't leak fakes into other test files
 
 
 def seed(db_path: str, day: date, items: list[MenuItem]) -> None:

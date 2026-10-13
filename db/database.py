@@ -1,6 +1,6 @@
 # The app's SQLite database: where scraped menus and nutrition are stored.
 # The scraper writes into it (save_menu, save_nutrition) and the backend will read
-# from it (get_menu). It also acts as our cache: has_nutrition lets the scraper skip
+# from it (get_menu, get_nutrition). It also acts as our cache: has_nutrition lets the scraper skip
 # dishes whose label we already have, so we don't re-download them from UMD.
 
 import json
@@ -202,13 +202,30 @@ def get_menu(conn: sqlite3.Connection, menu_date: date, hall: str) -> List[MenuR
     return [_row_to_menu_row(row) for row in rows]
 
 
+def get_nutrition(conn: sqlite3.Connection, recipe_id: str) -> Optional[NutritionLabel]:
+    """Look up one dish's stored nutrition.
+
+    Returns:
+        The NutritionLabel, or None if we don't have this dish's label.
+
+    Example:
+        get_nutrition(conn, "111*1").calories  # -> 109.8
+    """
+    row = conn.execute("SELECT * FROM items WHERE recipe_id = ?", (recipe_id,)).fetchone()
+    return None if row is None else _row_to_label(row)
+
+
+def _row_to_label(row: sqlite3.Row) -> NutritionLabel:
+    """Turn a row that has the items columns into a NutritionLabel (decoding allergens JSON)."""
+    values = {column: row[column] for column in NUTRITION_COLUMNS}
+    values["allergens"] = json.loads(values["allergens"])
+    return NutritionLabel(**values)
+
+
 def _row_to_menu_row(row: sqlite3.Row) -> MenuRow:
     """Turn one joined database row into a MenuRow (nutrition=None if the join found nothing)."""
-    nutrition = None
-    if row["calories"] is not None:
-        values = {column: row[column] for column in NUTRITION_COLUMNS}
-        values["allergens"] = json.loads(values["allergens"])
-        nutrition = NutritionLabel(**values)
+    # calories is NOT NULL in items, so NULL here means the LEFT JOIN found no item row.
+    nutrition = _row_to_label(row) if row["calories"] is not None else None
     return MenuRow(
         name=row["menu_name"],
         recipe_id=row["recipe_id"],

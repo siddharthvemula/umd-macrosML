@@ -5,7 +5,9 @@ from datetime import date
 
 import pytest
 
-from db.database import connect, create_tables, get_menu, has_nutrition, save_menu, save_nutrition
+from db.database import (
+    connect, create_tables, get_menu, get_nutrition, has_nutrition, save_menu, save_nutrition,
+)
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
 
@@ -48,6 +50,15 @@ def test_blank_nutrient_stays_none_not_zero(conn):
     save_nutrition(conn, BANANA.recipe_id, make_label(sugar_g=None))
     save_menu(conn, DAY, HALL, [BANANA])
     assert get_menu(conn, DAY, HALL)[0].nutrition.sugar_g is None
+
+
+def test_get_nutrition_returns_saved_label(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    assert get_nutrition(conn, BANANA.recipe_id) == make_label()
+
+
+def test_get_nutrition_for_unknown_dish_is_none(conn):
+    assert get_nutrition(conn, "nope*1") is None
 
 
 def test_has_nutrition_only_after_saving(conn):

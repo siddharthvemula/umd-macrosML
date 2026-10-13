@@ -54,3 +54,5 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Hall IDs are slugs (`south_campus`) built from the scraper's `HALLS`.** No spaces in URLs, and adding a hall to the scraper adds it to the API.
 - **`/menu` returns a flat item list (each with its `meal`), not grouped by meal.** Grouping is display logic for the frontend. Unknown hall → 404; a day with nothing stored → 200 with `items: []`.
 - **Kept `httpx` for `TestClient`, didn't switch to `httpx2` yet.** Starlette shows a deprecation warning, but the tests work fine; we'll switch when it actually breaks or during a dependency upgrade.
+- **`GET /items/{recipe_id}` returns 404 when we have no label,** whether the ID is wrong or the dish's label just hasn't been scraped. The frontend treats both the same ("no nutrition info").
+- **Shared API test fixtures live in `tests/conftest.py`,** which pytest loads automatically, so each API test file gets the same `client` (temp DB + fixed date) without copying it.
