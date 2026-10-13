@@ -29,11 +29,23 @@ OPTIONAL_NUTRIENTS = {
     "sodium_mg": "sodium",
 }
 
+# UMD's box for recipes with no published nutrition. Matched by CSS class, not text:
+# normal labels also say "not available" in a footnote about blank values.
+NOT_AVAILABLE_SELECTOR = "div.labelnotavailable"
+
 
 class LabelPageFormatError(Exception):
     """Raised when a page doesn't look like a nutrition label (no name or missing macros).
 
     That usually means UMD changed their site layout, or the recipe ID was bad.
+    """
+
+
+class NutritionNotAvailableError(LabelPageFormatError):
+    """Raised when UMD says outright that a recipe has no nutrition published.
+
+    This is "no data", not a broken page. It subclasses LabelPageFormatError so
+    code that catches that still works.
     """
 
 
@@ -74,6 +86,7 @@ def parse_label_page(html: str) -> NutritionLabel:
         A NutritionLabel for one serving.
 
     Raises:
+        NutritionNotAvailableError: If UMD says this recipe has no nutrition published.
         LabelPageFormatError: If the page has no dish name or is missing a macro.
 
     Example:
@@ -86,6 +99,8 @@ def parse_label_page(html: str) -> NutritionLabel:
     heading = soup.select_one("h1")
     if heading is None or not heading.get_text(strip=True):
         raise LabelPageFormatError("No dish name (<h1>) found. The label page layout may have changed.")
+    if soup.select_one(NOT_AVAILABLE_SELECTOR) is not None:
+        raise NutritionNotAvailableError(f"UMD has no nutrition published for {heading.get_text(strip=True)}")
 
     nutrients = _read_nutrients(soup)
     missing = [label for label in REQUIRED_NUTRIENTS.values() if label not in nutrients]

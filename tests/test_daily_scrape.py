@@ -165,3 +165,14 @@ def test_format_result_lists_failed_ids(conn):
     assert text.startswith("South Campus: 533 menu entries, 304 unique dishes")
     assert "1 failed" in text
     assert CHICKEN_BURGER_ID in text
+
+
+def test_dish_without_published_nutrition_counts_as_no_data_not_failed(conn):
+    soup_page = {build_label_url(CHICKEN_BURGER_ID): FakeResponse(200, read_fixture("label_maryland_crab_soup.html"))}
+    result = scrape_hall(conn, make_fetcher(full_menu_session(**soup_page)), HALL, LOCATION, DAY)
+
+    assert result.labels_no_data == [CHICKEN_BURGER_ID]
+    assert result.labels_failed == []
+    assert result.labels_fetched == 303
+    assert not has_nutrition(conn, CHICKEN_BURGER_ID)  # so the next run checks again
+    assert "1 no data, 0 failed" in format_result(result)

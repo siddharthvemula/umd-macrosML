@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 from db.database import DEFAULT_DB_PATH, connect, get_menu, has_nutrition, save_menu, save_nutrition
 from scraper.fetcher import Fetcher, FetchError
-from scraper.label_parser import LabelPageFormatError, parse_label_page
+from scraper.label_parser import LabelPageFormatError, NutritionNotAvailableError, parse_label_page
 from scraper.menu_parser import MenuItem, MenuPageFormatError, parse_menu_page
 
 # Hall name -> UMD's locationNum (from the hall dropdown on nutrition.umd.edu).
@@ -36,7 +36,8 @@ class ScrapeResult:
 
     Example:
         ScrapeResult(hall="South Campus", menu_entries=533, unique_dishes=304,
-                     labels_fetched=12, labels_cached=292, labels_failed=[])
+                     labels_fetched=12, labels_cached=291, labels_no_data=["090346*6"],
+                     labels_failed=[])
     """
 
     hall: str
@@ -44,6 +45,7 @@ class ScrapeResult:
     unique_dishes: int = 0
     labels_fetched: int = 0
     labels_cached: int = 0  # already in the database, so not re-downloaded
+    labels_no_data: List[str] = field(default_factory=list)  # UMD publishes no nutrition
     labels_failed: List[str] = field(default_factory=list)  # recipe IDs
 
 
@@ -103,6 +105,11 @@ def _fetch_missing_labels(
             continue
         try:
             label = parse_label_page(fetcher.fetch_label_html(recipe_id))
+        except NutritionNotAvailableError:
+            # Expected for a few dishes; not saved, so the next run checks again
+            # in case UMD adds the data. Must come before the broader except below.
+            result.labels_no_data.append(recipe_id)
+            continue
         except (FetchError, LabelPageFormatError) as error:
             logger.warning("Skipping label %s: %s", recipe_id, error)
             result.labels_failed.append(recipe_id)
@@ -116,12 +123,12 @@ def format_result(result: ScrapeResult) -> str:
 
     Example:
         format_result(result)
-        -> "South Campus: 533 menu entries, 304 unique dishes | labels: 12 fetched, 292 cached, 0 failed"
+        -> "South Campus: 533 menu entries, 304 unique dishes | labels: 12 fetched, 291 cached, 1 no data, 0 failed"
     """
     summary = (
         f"{result.hall}: {result.menu_entries} menu entries, {result.unique_dishes} unique dishes"
         f" | labels: {result.labels_fetched} fetched, {result.labels_cached} cached,"
-        f" {len(result.labels_failed)} failed"
+        f" {len(result.labels_no_data)} no data, {len(result.labels_failed)} failed"
     )
     if result.labels_failed:
         summary += f"\n  failed recipe IDs: {', '.join(result.labels_failed)}"

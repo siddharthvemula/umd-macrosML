@@ -7,6 +7,7 @@ import pytest
 
 from scraper.label_parser import (
     LabelPageFormatError,
+    NutritionNotAvailableError,
     _split_nutrient_text,
     parse_label_page,
 )
@@ -67,3 +68,21 @@ def test_label_missing_a_macro_raises():
     html = "<h1>Mystery Dish</h1><span class='nutfactstopnutrient'>Protein 5g</span>"
     with pytest.raises(LabelPageFormatError, match="total fat"):
         parse_label_page(html)
+
+
+def test_recipe_without_published_nutrition_raises_not_available():
+    with pytest.raises(NutritionNotAvailableError, match="Maryland Crab Soup"):
+        parse_label_page(load_fixture("label_maryland_crab_soup.html"))
+
+
+def test_not_available_is_still_a_label_format_error():
+    # Subclass, so existing `except LabelPageFormatError` code still catches it.
+    assert issubclass(NutritionNotAvailableError, LabelPageFormatError)
+
+
+def test_page_with_missing_macros_but_no_marker_is_not_no_data():
+    # Only UMD's explicit "not available" box counts as no data; anything else is a broken page.
+    html = "<h1>Mystery Dish</h1><span class='nutfactstopnutrient'>Protein 5g</span>"
+    with pytest.raises(LabelPageFormatError) as error:
+        parse_label_page(html)
+    assert not isinstance(error.value, NutritionNotAvailableError)
