@@ -75,11 +75,13 @@ class MenuRow:
     nutrition: Optional[NutritionLabel]
 
 
-def connect(path: str = str(DEFAULT_DB_PATH)) -> sqlite3.Connection:
+def connect(path: str = str(DEFAULT_DB_PATH), check_same_thread: bool = True) -> sqlite3.Connection:
     """Open the database (creating the file and tables if needed).
 
     Args:
         path: File path for the database, or ":memory:" for a throwaway one (tests).
+        check_same_thread: sqlite3's guard that a connection is only used by the thread
+            that opened it. The API turns it off (see api/deps.py).
 
     Returns:
         An open connection whose rows can be read by column name.
@@ -89,7 +91,7 @@ def connect(path: str = str(DEFAULT_DB_PATH)) -> sqlite3.Connection:
     """
     if path != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row  # lets us write row["calories"] instead of row[2]
     create_tables(conn)
     return conn

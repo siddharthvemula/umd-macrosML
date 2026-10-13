@@ -8,7 +8,7 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 ## Scraper
 - **Data source: nutrition.umd.edu HTML, not an API.** The site has no public API. Pages are server-rendered (ASP.NET), so the menu is already in the raw HTML. That means `requests` + BeautifulSoup is enough and we don't need a headless browser like Selenium.
 - **Scraping rules:** There's no robots.txt (404), so no crawl rules are declared. We still follow our own: scrape at most 1–2 times a day, wait between requests, and cache everything in our database.
-- **Python 3.9 (the Mac's built-in) for now.** It's the only version installed. Upgrade before the backend so we get newer syntax like `str | None`.
+- **Python 3.12 (Homebrew) in a `.venv`, replacing the Mac's built-in 3.9** before starting the backend. We get newer syntax like `str | None`, and the urllib3/LibreSSL warning goes away. Always run things with `.venv/bin/python`.
 - **"No menu" vs "broken page" are different outcomes.** The parser returns `[]` only when the page literally says "NO DATA AVAILABLE". Any other empty page raises `MenuPageFormatError`, so a UMD redesign can't be silently mistaken for "no menu posted".
 - **Item IDs: UMD's `RecNumAndPort`** (e.g. `080603*4`) rather than item names. Names can repeat or change, but the ID is what the nutrition label URL needs.
 - **Tests run on saved real pages** (`tests/fixtures/`): a full menu, a menu with dinner missing, and an empty day. They're fast, work offline, and don't load UMD's servers.
@@ -44,3 +44,12 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **`HALLS` dict, South Campus = 16** (ID taken from the site's hall dropdown). Adding a hall later means adding one line.
 - **"No nutrition published" is its own outcome (`NutritionNotAvailableError`), not a failure.** Same idea as "no menu" vs "broken page": UMD shows a "Nutritional Information is not available" box for some dishes (e.g. Maryland Crab Soup), and that's normal. A missing macro *without* that box still counts as a broken page. Detected by the `labelnotavailable` CSS class, not the text, because normal labels say "not available" in a footnote. It's a subclass of `LabelPageFormatError` so older `except` blocks still catch it.
 - **No-data dishes aren't saved, so every run checks them again.** UMD may add the data later, and it costs one request per dish per day.
+
+## Backend API
+- **FastAPI, not Flask.** Type hints become request validation (a bad `?date=` is an automatic 422) and interactive docs at `/docs` for free.
+- **Pydantic response models (`api/schemas.py`) separate from the DB dataclasses.** The database can change shape without breaking the frontend's JSON.
+- **One SQLite connection per request via `Depends(get_db)`, with `check_same_thread=False`.** FastAPI may run the dependency and the endpoint on different threads; that's safe because no two requests share a connection.
+- **"Today" = Eastern time (`get_today`), not the server clock.** A UTC server would show tomorrow's menu after 8pm on campus. It's also a dependency, so tests pin the date.
+- **Tests swap dependencies (`app.dependency_overrides`) and use a temp DB *file*, not `:memory:`.** Every `:memory:` connection is a separate empty database, so the test's seeded data wouldn't be visible to the API's connection.
+- **Hall IDs are slugs (`south_campus`) built from the scraper's `HALLS`.** No spaces in URLs, and adding a hall to the scraper adds it to the API.
+- **`/menu` returns a flat item list (each with its `meal`), not grouped by meal.** Grouping is display logic for the frontend. Unknown hall → 404; a day with nothing stored → 200 with `items: []`.
