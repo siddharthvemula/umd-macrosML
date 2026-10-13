@@ -10,7 +10,7 @@
   4. **Quiz me briefly, only on code concepts.** After explaining, you may ask 1–2 short questions. If I say "skip the quiz," skip it. Don't push me to rewrite answers that are already roughly right.
   5. **Ask before installing** any new package or tool, and say in one line what it's for.
   6. **Keep `DECISIONS.md` updated:** one or two lines for every real choice (what we picked, what we didn't, why). This is my interview prep.
-  7. **Suggest a commit** after each working step, but let me write the commit message.
+  7. **Commit and push automatically** after each step once the tests pass. Write the commit message yourself and push to GitHub; don't ask me to write it.
 - Keep explanations concise and practical. Skip theory I don't need yet.
 
 ## Keep usage low
