@@ -16,3 +16,7 @@ dist/
 
 # OS
 .DS_Store
+
+# ML evaluation photos: keep them local; only the labels file is committed
+ml/eval_photos/*
+!ml/eval_photos/labels.csv

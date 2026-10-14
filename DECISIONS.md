@@ -91,3 +91,5 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **The model is passed into the recognizer (dependency injection, like `Fetcher`),** so tests use a fake model and never download 600 MB.
 - **Saving confirmed photo + dish (step 6) is part of Phase 4, not Phase 5,** so training data for fine-tuning starts piling up from the first real use.
 - **Known v1 limit:** CLIP sees the whole plate as one image, so multi-dish plates are handled by the user picking several of the top 5 guesses.
+- **Eval labels in `ml/eval_photos/labels.csv`: one row per photo (`photo,date,hall,meal,dishes,notes`), dishes as exact menu names joined by `;`.** You can't see recipe IDs in a dining hall, but you can see names in our app. The eval script will match names to that day's stored menu. `;` because some dish names contain commas. Photos stay gitignored (big, personal); only the labels file is committed.
+- **The candidate list is ~250 dishes per meal at Yahentamitsi, not ~30** (it includes salad bar toppings and condiments like Butter). The eval will tell us whether we need to filter that list down.
