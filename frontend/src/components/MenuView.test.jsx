@@ -20,7 +20,7 @@ const HALLS = [
 
 const BANANA = {
   name: 'Banana', recipe_id: '111*1', station: 'Fruit', meal: 'Breakfast',
-  nutrition: { calories: 109.8, protein_g: 1.3 },
+  nutrition: { calories: 109.8, protein_g: 1.3, carbs_g: 28.2, fat_g: 0.4 },
 }
 const CRAB_SOUP = {
   name: 'Maryland Crab Soup', recipe_id: '222*1', station: 'Soup', meal: 'Lunch', nutrition: null,
@@ -42,7 +42,7 @@ describe('MenuView', () => {
     expect(getMenu).toHaveBeenCalledWith('south_campus')
     expect(screen.getByRole('heading', { name: 'Breakfast' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Lunch' })).toBeInTheDocument()
-    expect(screen.getByText('110 cal · 1.3g protein')).toBeInTheDocument()
+    expect(screen.getByText('110 cal · 1.3g protein · 28.2g carbs · 0.4g fat')).toBeInTheDocument()
   })
 
   it('labels a dish with no nutrition instead of showing blank macros', async () => {

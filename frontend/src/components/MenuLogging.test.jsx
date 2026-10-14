@@ -16,7 +16,7 @@ vi.mock('../api.js', async (importOriginal) => ({
 
 const BANANA = {
   name: 'Banana', recipe_id: '111*1', station: 'Fruit', meal: 'Breakfast',
-  nutrition: { calories: 109.8, protein_g: 1.3 },
+  nutrition: { calories: 109.8, protein_g: 1.3, carbs_g: 28.2, fat_g: 0.4 },
 }
 const CRAB_SOUP = {
   name: 'Maryland Crab Soup', recipe_id: '222*1', station: 'Soup', meal: 'Lunch', nutrition: null,

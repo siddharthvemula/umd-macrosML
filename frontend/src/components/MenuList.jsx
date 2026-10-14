@@ -36,7 +36,7 @@ export default function MenuList({ items, loggingId, onLog }) {
 }
 
 /**
- * One dish: name, station, calories and protein per serving, and portion buttons.
+ * One dish: name, station, the four macros per serving, and portion buttons.
  * Dishes with no nutrition get no buttons, since the API can't log macros it doesn't know.
  *
  * @param {{item: {name: string, station: string, nutrition: object|null}, isLogging: boolean,
@@ -54,7 +54,8 @@ function DishRow({ item, isLogging, onLog }) {
       <div className="dish-macros">
         <span>
           {nutrition
-            ? `${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein`
+            ? `${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein · ` +
+              `${nutrition.carbs_g}g carbs · ${nutrition.fat_g}g fat`
             : 'No nutrition info'}
         </span>
         {nutrition && <PortionButtons dishName={item.name} disabled={isLogging} onLog={onLog} />}
