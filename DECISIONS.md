@@ -84,3 +84,10 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **After a delete, totals are reloaded from the server, not subtracted in the browser.** Same rule as the log banner: show what the server has, no rounding drift.
 - **Totals shown as whole numbers** (the API keeps 1 decimal). A tenth of a gram is noise on a daily total.
 - **No daily goals/progress bars and no chart library yet.** There's nowhere to store goals in the backend; four number tiles need no install.
+
+## ML v1 (Phase 4, planned)
+- **Zero-shot CLIP (`openai/clip-vit-base-patch32` via Hugging Face `transformers`), not training our own model first.** We only rank ~30 of today's dishes by image–text similarity, so a pretrained model needs no labeled training data to start.
+- **Evaluation photos from Yahentamitsi, not South Campus.** 15–20 labeled plates (`ml/eval_photos/` + `labels.csv`, photos gitignored) measure top-1/top-3 accuracy before we build on it.
+- **The model is passed into the recognizer (dependency injection, like `Fetcher`),** so tests use a fake model and never download 600 MB.
+- **Saving confirmed photo + dish (step 6) is part of Phase 4, not Phase 5,** so training data for fine-tuning starts piling up from the first real use.
+- **Known v1 limit:** CLIP sees the whole plate as one image, so multi-dish plates are handled by the user picking several of the top 5 guesses.
