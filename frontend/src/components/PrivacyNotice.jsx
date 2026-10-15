@@ -28,8 +28,8 @@ export function PrivacyDetails() {
           browser, not to you. Clearing this site's data starts a fresh, empty log.
         </li>
         <li>
-          Photos are saved exactly as uploaded. If your camera adds your location to photos, that is saved
-          too, so you may want to turn that off in your camera settings.
+          Before a photo is saved, we remove its hidden details, such as the location and phone model your
+          camera may have added. Only the picture itself is kept.
         </li>
         <li>Only photograph your food. Keep people, faces, and ID cards out of the picture.</li>
         <li>

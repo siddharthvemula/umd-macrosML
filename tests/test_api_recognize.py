@@ -117,7 +117,8 @@ def test_photo_is_saved_with_an_id(client, db_path, photo_dir, scorer):
     photo_id = post_photo(client, data).json()["photo_id"]
 
     [saved_file] = photo_dir.iterdir()
-    assert saved_file.read_bytes() == data
+    # Re-encoded without metadata (see test_photo_store.py), but the same picture.
+    assert Image.open(saved_file).tobytes() == Image.open(io.BytesIO(data)).tobytes()
     conn = connect(db_path)
     assert photo_exists(conn, photo_id, device_id=DEVICE)
     conn.close()
