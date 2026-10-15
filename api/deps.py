@@ -1,13 +1,16 @@
-# Shared "dependencies" that FastAPI hands to endpoints: a database connection and
-# today's date. Endpoints ask for them as parameters instead of creating them, so
-# tests can swap in a test database or a fixed date (app.dependency_overrides).
+# Shared "dependencies" that FastAPI hands to endpoints: a database connection,
+# today's date, and the CLIP photo scorer. Endpoints ask for them as parameters instead
+# of creating them, so tests can swap in a test database, a fixed date, or a fake
+# scorer (app.dependency_overrides).
 
 import sqlite3
 from datetime import date, datetime
+from functools import lru_cache
 from typing import Iterator
 from zoneinfo import ZoneInfo
 
 from db.database import DEFAULT_DB_PATH, connect
+from ml.recognizer import ClipScorer, ImageTextScorer
 
 # UMD's dining halls run on Eastern time. A server hosted elsewhere (often UTC) would
 # otherwise flip to "tomorrow's" menu at 8pm here.
@@ -40,3 +43,17 @@ def get_today() -> date:
         get_today()  # -> date(2026, 10, 12) at 11pm Eastern, even if UTC is already the 13th
     """
     return datetime.now(CAMPUS_TIMEZONE).date()
+
+
+# maxsize=1: the first call loads CLIP, and every later call returns that same object.
+@lru_cache(maxsize=1)
+def get_scorer() -> ImageTextScorer:
+    """Return the CLIP scorer, loading it on the first photo instead of at server start.
+
+    Loading takes a few seconds and ~600 MB of memory, so it happens once and is reused.
+    The server still starts instantly, and the menu/meal endpoints never pay for it.
+
+    Example:
+        def recognize_photo(scorer: ImageTextScorer = Depends(get_scorer)): ...
+    """
+    return ClipScorer()

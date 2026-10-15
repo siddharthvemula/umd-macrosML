@@ -68,6 +68,32 @@ class MenuOut(BaseModel):
     items: list[MenuItemOut]
 
 
+class GuessOut(BaseModel):
+    """One dish the recognizer thinks is on the plate, ready to log with POST /meals.
+
+    Example JSON: {"recipe_id": "111*1", "name": "Banana", "score": 0.42, "nutrition": {...}}
+    """
+
+    recipe_id: str
+    name: str
+    # Probability (0-1) among all of the meal's candidate dishes, not just these guesses.
+    score: float
+    nutrition: NutritionOut
+
+
+class RecognizeOut(BaseModel):
+    """The recognizer's ranked guesses for one plate photo, best first.
+
+    Example JSON: {"hall": "yahentamitsi", "date": "2026-10-15", "meal": "Lunch",
+                   "guesses": [{"recipe_id": "111*1", "name": "Banana", ...}, ...]}
+    """
+
+    hall: str
+    date: date
+    meal: str | None
+    guesses: list[GuessOut]
+
+
 class MealLogIn(BaseModel):
     """The request body for logging a meal.
 

@@ -1,20 +1,23 @@
 # The FastAPI backend: serves the menus and nutrition the scraper saved to the
-# database, and lets a student log meals and see their daily totals. Run it locally with
+# database, lets a student log meals and see their daily totals, and guesses which
+# dishes are on a plate photo (POST /recognize). Run it locally with
 #   .venv/bin/uvicorn api.main:app --reload
 # then open http://127.0.0.1:8000/docs to try the endpoints in the browser.
 
 import sqlite3
 from datetime import date
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 
-from api.deps import get_db, get_today
+from api.deps import get_db, get_scorer, get_today
 from api.schemas import (
-    DailySummaryOut, HallOut, MealLogIn, MealLogOut, MenuItemOut, MenuOut, NutritionOut,
+    DailySummaryOut, GuessOut, HallOut, MealLogIn, MealLogOut, MenuItemOut, MenuOut,
+    NutritionOut, RecognizeOut,
 )
 from db.database import (
     MealLog, delete_meal_log, get_daily_totals, get_meal_logs, get_menu, get_nutrition, log_meal,
 )
+from ml.recognizer import BadPhotoError, ImageTextScorer, load_photo, rank_menu_items
 from scraper.daily_scrape import HALLS
 
 app = FastAPI(title="UMD Dining Macro Tracker")
@@ -42,6 +45,22 @@ def list_halls() -> list[HallOut]:
     return [HallOut(id=id_, name=name) for id_, name in HALL_NAMES_BY_ID.items()]
 
 
+# Phone photos are usually 2-5 MB; anything far bigger is probably not a plate photo.
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
+
+
+def get_hall_name(hall: str) -> str:
+    """Look up a hall ID's display name, or raise a 404 for an unknown hall.
+
+    Example:
+        get_hall_name("south_campus")  # -> "South Campus"
+    """
+    hall_name = HALL_NAMES_BY_ID.get(hall)
+    if hall_name is None:
+        raise HTTPException(status_code=404, detail=f"Unknown hall '{hall}'. See /halls for valid IDs.")
+    return hall_name
+
+
 @app.get("/menu")
 def read_menu(
     hall: str,
@@ -63,12 +82,8 @@ def read_menu(
     Example:
         GET /menu?hall=south_campus&date=2026-10-12
     """
-    hall_name = HALL_NAMES_BY_ID.get(hall)
-    if hall_name is None:
-        raise HTTPException(status_code=404, detail=f"Unknown hall '{hall}'. See /halls for valid IDs.")
-
     day = menu_date or today
-    rows = get_menu(conn, day, hall_name)
+    rows = get_menu(conn, day, get_hall_name(hall))
     return MenuOut(hall=hall, date=day, items=[MenuItemOut.model_validate(row) for row in rows])
 
 
@@ -86,6 +101,69 @@ def read_item_nutrition(recipe_id: str, conn: sqlite3.Connection = Depends(get_d
     if label is None:
         raise HTTPException(status_code=404, detail=f"No nutrition stored for recipe '{recipe_id}'.")
     return NutritionOut.model_validate(label)
+
+
+# A plain `def`, not `async def`: CLIP is slow CPU work, and FastAPI runs plain `def`
+# endpoints on a worker thread, so one photo doesn't freeze the server for other requests.
+@app.post("/recognize")
+def recognize_photo(
+    photo: UploadFile = File(...),
+    hall: str = Form(...),
+    meal: str | None = Form(None),
+    conn: sqlite3.Connection = Depends(get_db),
+    today: date = Depends(get_today),
+    scorer: ImageTextScorer = Depends(get_scorer),
+) -> RecognizeOut:
+    """Guess which of today's dishes are on a plate photo.
+
+    Form fields (multipart upload, like a file input in an HTML form):
+        photo: the image file (JPEG/PNG/...).
+        hall: hall ID from /halls, e.g. "yahentamitsi".
+        meal: optional, e.g. "Lunch". Without it, every dish served today is a candidate.
+
+    Returns:
+        Top 5 guesses, best first, each with nutrition so it can be logged right away.
+        guesses is [] if no menu is stored for today (or for that meal).
+        400 for a file that isn't an image, 413 if it's over 10 MB, 404 for an unknown hall.
+
+    Example:
+        POST /recognize  photo=plate.jpg, hall=yahentamitsi, meal=Lunch
+        # -> {"guesses": [{"recipe_id": "...", "name": "Fried Chicken Thigh", "score": 0.31, ...}]}
+    """
+    hall_name = get_hall_name(hall)
+
+    data = photo.file.read()
+    if len(data) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Photo is too large (max 10 MB).")
+    try:
+        image = load_photo(data)
+    except BadPhotoError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    # Only dishes with nutrition are candidates: a guess we can't log (POST /meals would
+    # 404) would just waste one of the 5 slots. Case-insensitive so "lunch" works too.
+    candidates = [
+        row for row in get_menu(conn, today, hall_name)
+        if row.nutrition is not None and (meal is None or row.meal.lower() == meal.lower())
+    ]
+    # The recognizer works on names; this maps each guessed name back to its dish.
+    rows_by_name = {}
+    for row in candidates:
+        rows_by_name.setdefault(row.name, row)
+
+    guesses = rank_menu_items(image, list(rows_by_name), scorer)
+    return RecognizeOut(
+        hall=hall, date=today, meal=meal,
+        guesses=[
+            GuessOut(
+                recipe_id=rows_by_name[guess.name].recipe_id,
+                name=guess.name,
+                score=round(guess.score, 3),
+                nutrition=NutritionOut.model_validate(rows_by_name[guess.name].nutrition),
+            )
+            for guess in guesses
+        ],
+    )
 
 
 def round_macro(value: float) -> float:
