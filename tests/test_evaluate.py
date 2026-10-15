@@ -98,6 +98,11 @@ def test_load_candidates_matches_hall_case_insensitively(conn):
     assert load_candidates(conn, DAY, "yahentamitsi", "Lunch") == LUNCH
 
 
+def test_load_candidates_with_empty_meal_uses_whole_day(conn):
+    # Photos taken with meal "Any" in the app are exported with meal "".
+    assert load_candidates(conn, DAY, "yahentamitsi", "") == LUNCH
+
+
 def test_load_candidates_returns_empty_for_missing_menu(conn):
     assert load_candidates(conn, date(2026, 1, 1), "yahentamitsi", "Lunch") == []
 

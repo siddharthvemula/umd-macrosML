@@ -5,7 +5,10 @@
 # numbers change as more photos are labeled.
 #
 # Run: .venv/bin/python -m ml.evaluate
+#      .venv/bin/python -m ml.evaluate --training   (photos logged in the app; run
+#      ml.export_training_data first)
 
+import argparse
 import csv
 import difflib
 import sqlite3
@@ -14,6 +17,8 @@ from datetime import date
 from pathlib import Path
 
 from db.database import DEFAULT_DB_PATH, connect, get_menu
+from ml.export_training_data import TRAINING_LABELS_PATH
+from ml.photo_store import DEFAULT_PHOTO_DIR
 from ml.recognizer import BadPhotoError, Guess, ImageTextScorer, load_photo, rank_menu_items
 
 EVAL_DIR = Path(__file__).parent / "eval_photos"
@@ -91,7 +96,8 @@ def load_candidates(conn: sqlite3.Connection, day: date, hall: str, meal: str) -
     Args:
         day: the menu date.
         hall: hall name in any capitalization (labels say "yahentamitsi", the DB "Yahentamitsi").
-        meal: meal name, e.g. "Lunch".
+        meal: meal name, e.g. "Lunch", or "" for the whole day (photos taken with meal
+            "Any" in the app, where the recognizer also used the whole day's menu).
 
     Returns:
         Unique dish names in menu order. [] if nothing is stored.
@@ -102,7 +108,7 @@ def load_candidates(conn: sqlite3.Connection, day: date, hall: str, meal: str) -
     rows = [
         row
         for row in get_menu(conn, day, _stored_hall_name(conn, hall))
-        if row.meal.lower() == meal.lower()
+        if not meal or row.meal.lower() == meal.lower()
     ]
     return list(dict.fromkeys(row.name for row in rows))
 
@@ -188,7 +194,7 @@ def evaluate(
     for labeled in photos:
         candidates = load_candidates(conn, labeled.day, labeled.hall, labeled.meal)
         if not candidates:
-            print(f"Skipping {labeled.photo}: no {labeled.meal} menu stored for {labeled.day}")
+            print(f"Skipping {labeled.photo}: no {labeled.meal or 'day'} menu stored for {labeled.day}")
             continue
 
         unknown = find_unknown_dishes(labeled.dishes, candidates)
@@ -272,17 +278,30 @@ def main() -> None:
     """Evaluate every prompt wording on all labeled photos and log the results."""
     from ml.recognizer import ClipScorer  # here so tests importing this file don't need CLIP
 
-    photos = read_labels()
+    parser = argparse.ArgumentParser(description="Score the plate recognizer on labeled photos.")
+    parser.add_argument(
+        "--training", action="store_true",
+        help="use photos logged in the app (ml/training_photos/) instead of ml/eval_photos/",
+    )
+    args = parser.parse_args()
+    labels_path, photo_dir = (TRAINING_LABELS_PATH, DEFAULT_PHOTO_DIR) if args.training else (LABELS_PATH, EVAL_DIR)
+
+    if not labels_path.exists():
+        print(f"No {labels_path}. Run: .venv/bin/python -m ml.export_training_data")
+        return
+    photos = read_labels(labels_path)
     if not photos:
-        print("No usable labeled photos in labels.csv yet.")
+        print(f"No usable labeled photos in {labels_path.name} yet.")
         return
 
     conn = connect(str(DEFAULT_DB_PATH))
     scorer = ClipScorer()  # load once (~600 MB), reuse for every photo and wording
     for template in TEMPLATES:
-        results = evaluate(photos, scorer, conn, template)
+        results = evaluate(photos, scorer, conn, template, photo_dir)
         print_report(template, results)
-        append_history(summarize(results), template, date.today())
+        # eval_history.csv tracks the hand-labeled set only, so its trend compares like with like.
+        if not args.training:
+            append_history(summarize(results), template, date.today())
     conn.close()
     print(f"\nAppended results to {HISTORY_PATH.name}")
 

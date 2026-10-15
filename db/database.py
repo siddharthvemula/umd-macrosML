@@ -5,6 +5,7 @@
 # dishes whose label we already have, so we don't re-download them from UMD.
 # Plate photos sent to the recognizer are recorded in `photos` (save_photo); a meal log
 # with a photo_id says "this dish was on that photo", which is our ML training label.
+# get_photo_labels gathers those labels for ml/export_training_data.py.
 
 import json
 import sqlite3
@@ -128,6 +129,23 @@ class MealLog:
     logged_at: str
     # The plate photo this dish was logged from, or None if logged from the menu.
     photo_id: Optional[int] = None
+
+
+@dataclass
+class PhotoLabels:
+    """A saved plate photo plus the dishes logged from it (its training labels).
+
+    Example:
+        PhotoLabels(photo_id=1, filename="3f2a.jpg", date=date(2026, 10, 15),
+                    hall="Yahentamitsi", meal="Lunch", dishes=["Spanish Rice", "Guacamole"])
+    """
+
+    photo_id: int
+    filename: str
+    date: date
+    hall: str
+    meal: Optional[str]  # None if the whole day's menu was used
+    dishes: List[str]
 
 
 @dataclass
@@ -445,6 +463,43 @@ def photo_exists(conn: sqlite3.Connection, photo_id: int) -> bool:
     """
     row = conn.execute("SELECT 1 FROM photos WHERE id = ?", (photo_id,)).fetchone()
     return row is not None
+
+
+def get_photo_labels(conn: sqlite3.Connection) -> List[PhotoLabels]:
+    """Get every photo that has at least one dish logged from it, oldest photo first.
+
+    Photos nobody logged from are left out: with no dishes, there's nothing to learn.
+
+    Returns:
+        One PhotoLabels per photo. Each dish name appears once, in the order it was
+        logged, even if it was logged twice (e.g. two servings logged separately).
+
+    Example:
+        get_photo_labels(conn)[0].dishes  # -> ["Spanish Rice", "Guacamole"]
+    """
+    # The JOIN gives one row per (photo, logged dish); we group them per photo below.
+    rows = conn.execute(
+        """
+        SELECT photos.id, photos.filename, photos.date, photos.hall, photos.meal,
+               meal_logs.name AS dish
+        FROM photos
+        JOIN meal_logs ON meal_logs.photo_id = photos.id
+        ORDER BY photos.id, meal_logs.id
+        """
+    ).fetchall()
+
+    labels_by_id: dict[int, PhotoLabels] = {}
+    for row in rows:
+        labels = labels_by_id.setdefault(
+            row["id"],
+            PhotoLabels(
+                photo_id=row["id"], filename=row["filename"], date=date.fromisoformat(row["date"]),
+                hall=row["hall"], meal=row["meal"], dishes=[],
+            ),
+        )
+        if row["dish"] not in labels.dishes:
+            labels.dishes.append(row["dish"])
+    return list(labels_by_id.values())
 
 
 def _row_to_meal_log(row: sqlite3.Row) -> MealLog:
