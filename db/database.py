@@ -3,6 +3,8 @@
 # and the backend reads them (get_menu, get_nutrition) and manages meal logs
 # (log_meal, get_meal_logs, delete_meal_log, get_daily_totals). It also acts as our cache: has_nutrition lets the scraper skip
 # dishes whose label we already have, so we don't re-download them from UMD.
+# Plate photos sent to the recognizer are recorded in `photos` (save_photo); a meal log
+# with a photo_id says "this dish was on that photo", which is our ML training label.
 
 import json
 import sqlite3
@@ -64,7 +66,20 @@ CREATE TABLE IF NOT EXISTS meal_logs (
     protein_g REAL NOT NULL,
     carbs_g   REAL NOT NULL,
     fat_g     REAL NOT NULL,
-    logged_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP  -- UTC
+    logged_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- UTC
+    photo_id  INTEGER  -- photos.id if logged from a plate photo, else NULL
+);
+
+-- One row per plate photo the recognizer saw. The image itself is a file on disk
+-- (databases are bad at big blobs); this row says where it is and what menu it was
+-- matched against. Its labels are the meal_logs rows that point to it.
+CREATE TABLE IF NOT EXISTS photos (
+    id          INTEGER PRIMARY KEY,
+    date        TEXT NOT NULL,  -- campus date, ISO format
+    hall        TEXT NOT NULL,  -- display name, like menu_entries.hall
+    meal        TEXT,           -- e.g. 'Lunch'; NULL if the whole day's menu was used
+    filename    TEXT NOT NULL UNIQUE,  -- e.g. '3f2a...c1.jpg', inside the photo folder
+    uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP  -- UTC
 );
 """
 
@@ -111,6 +126,8 @@ class MealLog:
     carbs_g: float
     fat_g: float
     logged_at: str
+    # The plate photo this dish was logged from, or None if logged from the menu.
+    photo_id: Optional[int] = None
 
 
 @dataclass
@@ -157,6 +174,27 @@ def create_tables(conn: sqlite3.Connection) -> None:
         create_tables(conn)  # second call does nothing
     """
     conn.executescript(SCHEMA)
+    _add_missing_columns(conn)
+
+
+# Columns added after a table first shipped: (table, column, SQL type). CREATE TABLE IF
+# NOT EXISTS skips a table that already exists, so an older database file would never
+# get these. This list is a tiny "migration" step that adds them.
+ADDED_COLUMNS = [("meal_logs", "photo_id", "INTEGER")]
+
+
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    """Add any column from ADDED_COLUMNS that an older database file is missing.
+
+    Example:
+        A database made before photo_id existed gets `meal_logs.photo_id` (NULL for old rows).
+    """
+    for table, column, sql_type in ADDED_COLUMNS:
+        # PRAGMA table_info lists a table's columns; row["name"] is each column's name.
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            with conn:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
 
 
 def save_nutrition(conn: sqlite3.Connection, recipe_id: str, label: NutritionLabel) -> None:
@@ -288,8 +326,15 @@ def _row_to_menu_row(row: sqlite3.Row) -> MenuRow:
     )
 
 
-def log_meal(conn: sqlite3.Connection, day: date, recipe_id: str, servings: float) -> Optional[MealLog]:
+def log_meal(
+    conn: sqlite3.Connection, day: date, recipe_id: str, servings: float,
+    photo_id: Optional[int] = None,
+) -> Optional[MealLog]:
     """Log that a student ate `servings` of a dish on `day`.
+
+    Args:
+        photo_id: The plate photo this dish was picked from (see save_photo), or None.
+            Check it exists first with photo_exists.
 
     Returns:
         The saved MealLog, or None (and nothing saved) if we have no nutrition for
@@ -304,11 +349,12 @@ def log_meal(conn: sqlite3.Connection, day: date, recipe_id: str, servings: floa
     with conn:
         cursor = conn.execute(
             """
-            INSERT INTO meal_logs (date, recipe_id, name, servings, calories, protein_g, carbs_g, fat_g)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO meal_logs
+                (date, recipe_id, name, servings, calories, protein_g, carbs_g, fat_g, photo_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (day.isoformat(), recipe_id, label.name, servings,
-             label.calories, label.protein_g, label.carbs_g, label.fat_g),
+             label.calories, label.protein_g, label.carbs_g, label.fat_g, photo_id),
         )
     # Read the row back so the result includes the id and logged_at SQLite filled in.
     row = conn.execute("SELECT * FROM meal_logs WHERE id = ?", (cursor.lastrowid,)).fetchone()
@@ -364,6 +410,41 @@ def get_daily_totals(conn: sqlite3.Connection, day: date) -> DailyTotals:
         (day.isoformat(),),
     ).fetchone()
     return DailyTotals(**dict(row))
+
+
+def save_photo(
+    conn: sqlite3.Connection, day: date, hall: str, meal: Optional[str], filename: str,
+) -> int:
+    """Record a plate photo that was saved to disk as `filename`.
+
+    Args:
+        day: The campus date whose menu the photo was matched against.
+        hall: Hall display name, e.g. "Yahentamitsi".
+        meal: e.g. "Lunch", or None if the whole day's menu was used.
+        filename: The file's name inside the photo folder.
+
+    Returns:
+        The new photo's id, which meal logs use as photo_id.
+
+    Example:
+        save_photo(conn, date(2026, 10, 15), "Yahentamitsi", "Lunch", "3f2a.jpg")  # -> 1
+    """
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO photos (date, hall, meal, filename) VALUES (?, ?, ?, ?)",
+            (day.isoformat(), hall, meal, filename),
+        )
+    return cursor.lastrowid
+
+
+def photo_exists(conn: sqlite3.Connection, photo_id: int) -> bool:
+    """Check whether a photo with this id was recorded.
+
+    Example:
+        photo_exists(conn, 1)  # -> True after the first save_photo
+    """
+    row = conn.execute("SELECT 1 FROM photos WHERE id = ?", (photo_id,)).fetchone()
+    return row is not None
 
 
 def _row_to_meal_log(row: sqlite3.Row) -> MealLog:

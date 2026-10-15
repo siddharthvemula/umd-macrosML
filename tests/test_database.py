@@ -1,6 +1,7 @@
 # Tests for db/database.py. Each test uses a fresh in-memory database,
 # so they're fast, isolated from each other, and leave no files behind.
 
+import sqlite3
 from dataclasses import replace
 from datetime import date, timedelta
 
@@ -8,7 +9,7 @@ import pytest
 
 from db.database import (
     connect, create_tables, delete_meal_log, get_daily_totals, get_meal_logs, get_menu,
-    get_nutrition, has_nutrition, log_meal, save_menu, save_nutrition,
+    get_nutrition, has_nutrition, log_meal, photo_exists, save_menu, save_nutrition, save_photo,
 )
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
@@ -173,3 +174,44 @@ def test_daily_totals_multiply_by_servings(conn):
 def test_daily_totals_for_empty_day_are_zero(conn):
     totals = get_daily_totals(conn, DAY)
     assert (totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.meal_count) == (0, 0, 0, 0, 0)
+
+
+# --- Plate photos (training data) ---
+
+
+def test_saved_photo_exists_and_unknown_one_does_not(conn):
+    photo_id = save_photo(conn, DAY, "Yahentamitsi", "Lunch", "abc.jpg")
+    assert photo_exists(conn, photo_id)
+    assert not photo_exists(conn, photo_id + 1)
+
+
+def test_meal_logged_from_photo_keeps_photo_id(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    photo_id = save_photo(conn, DAY, "Yahentamitsi", None, "abc.jpg")
+    log_meal(conn, DAY, BANANA.recipe_id, 1, photo_id=photo_id)
+    log_meal(conn, DAY, BANANA.recipe_id, 1)  # logged from the menu instead
+
+    assert [log.photo_id for log in get_meal_logs(conn, DAY)] == [photo_id, None]
+
+
+def test_old_database_gets_photo_id_column_added(tmp_path):
+    # A meal_logs table as it was before photo_id existed, with one logged meal.
+    path = str(tmp_path / "old.db")
+    old = sqlite3.connect(path)
+    old.execute(
+        """CREATE TABLE meal_logs (id INTEGER PRIMARY KEY, date TEXT NOT NULL,
+           recipe_id TEXT NOT NULL, name TEXT NOT NULL, servings REAL NOT NULL,
+           calories REAL NOT NULL, protein_g REAL NOT NULL, carbs_g REAL NOT NULL,
+           fat_g REAL NOT NULL, logged_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"""
+    )
+    old.execute(
+        "INSERT INTO meal_logs (date, recipe_id, name, servings, calories, protein_g, carbs_g, fat_g)"
+        " VALUES ('2026-10-12', '111*1', 'Banana', 1, 109.8, 1.3, 28.2, 0.4)"
+    )
+    old.commit()
+    old.close()
+
+    conn = connect(path)  # should add the missing column and keep the old row
+    [log] = get_meal_logs(conn, DAY)
+    assert (log.name, log.photo_id) == ("Banana", None)
+    conn.close()

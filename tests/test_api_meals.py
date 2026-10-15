@@ -2,7 +2,8 @@
 # GET /summary. The `client` and `db_path` fixtures come from conftest.py
 # (a temp database per test and a fixed "today" of 2026-10-12).
 
-from db.database import connect, save_nutrition
+from conftest import TODAY
+from db.database import connect, save_nutrition, save_photo
 from scraper.label_parser import NutritionLabel
 
 BANANA_ID = "111*1"
@@ -87,3 +88,30 @@ def test_summary_for_empty_day_is_zeros(client):
     assert summary == {
         "date": "2026-10-13", "calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "meal_count": 0,
     }
+
+
+def test_log_from_a_photo_keeps_photo_id(client, db_path):
+    seed_banana(db_path)
+    conn = connect(db_path)
+    photo_id = save_photo(conn, TODAY, "Yahentamitsi", "Lunch", "abc.jpg")
+    conn.close()
+
+    response = client.post("/meals", json={"recipe_id": BANANA_ID, "servings": 1, "photo_id": photo_id})
+
+    assert response.status_code == 201
+    assert response.json()["photo_id"] == photo_id
+    assert client.get("/meals").json()[0]["photo_id"] == photo_id
+
+
+def test_log_without_photo_has_null_photo_id(client, db_path):
+    seed_banana(db_path)
+    response = client.post("/meals", json={"recipe_id": BANANA_ID, "servings": 1})
+    assert response.json()["photo_id"] is None
+
+
+def test_log_with_unknown_photo_is_404_and_saves_nothing(client, db_path):
+    seed_banana(db_path)
+    response = client.post("/meals", json={"recipe_id": BANANA_ID, "servings": 1, "photo_id": 99})
+
+    assert response.status_code == 404
+    assert client.get("/meals").json() == []

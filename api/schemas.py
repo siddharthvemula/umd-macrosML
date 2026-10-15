@@ -91,6 +91,9 @@ class RecognizeOut(BaseModel):
     hall: str
     date: date
     meal: str | None
+    # The saved photo's id, sent back with POST /meals so a logged guess becomes a
+    # training label. None when there were no guesses (nothing to label, so not saved).
+    photo_id: int | None
     guesses: list[GuessOut]
 
 
@@ -98,6 +101,7 @@ class MealLogIn(BaseModel):
     """The request body for logging a meal.
 
     Example JSON: {"recipe_id": "111*1", "servings": 1.5}  (date defaults to today)
+                  {"recipe_id": "111*1", "servings": 1, "photo_id": 7}  (logged from a photo)
     """
 
     recipe_id: str
@@ -105,6 +109,7 @@ class MealLogIn(BaseModel):
     servings: float = Field(gt=0, le=5)
     # alias: the JSON key is "date", but a field named `date` would hide the date type.
     log_date: date | None = Field(None, alias="date")
+    photo_id: int | None = None
 
 
 class MealLogOut(BaseModel):
@@ -112,7 +117,7 @@ class MealLogOut(BaseModel):
 
     Example JSON: {"id": 1, "date": "2026-10-12", "recipe_id": "111*1", "name": "Banana",
                    "servings": 2.0, "calories": 219.6, "protein_g": 2.6, "carbs_g": 56.4,
-                   "fat_g": 0.8, "logged_at": "2026-10-12 16:30:00"}
+                   "fat_g": 0.8, "logged_at": "2026-10-12 16:30:00", "photo_id": null}
     """
 
     id: int
@@ -125,6 +130,7 @@ class MealLogOut(BaseModel):
     carbs_g: float
     fat_g: float
     logged_at: str
+    photo_id: int | None
 
 
 class DailySummaryOut(BaseModel):

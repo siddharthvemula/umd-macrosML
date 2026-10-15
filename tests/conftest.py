@@ -1,14 +1,14 @@
 # Shared pytest fixtures for the API tests (pytest loads this file automatically).
-# `client` is a TestClient whose requests use a temporary database file and a fixed
-# "today", swapped in through FastAPI's dependency_overrides, so API tests never
-# touch the real database or the real clock.
+# `client` is a TestClient whose requests use a temporary database file, a temporary
+# photo folder and a fixed "today", swapped in through FastAPI's dependency_overrides,
+# so API tests never touch the real database, real training photos, or the real clock.
 
 from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
 
-from api.deps import get_db, get_today
+from api.deps import get_db, get_photo_dir, get_today
 from api.main import app
 from db.database import connect
 
@@ -24,8 +24,14 @@ def db_path(tmp_path):
 
 
 @pytest.fixture
-def client(db_path):
-    """A TestClient whose requests use the test database and a fixed date of TODAY."""
+def photo_dir(tmp_path):
+    """A temp folder for saved plate photos (doesn't exist until a photo is saved)."""
+    return tmp_path / "photos"
+
+
+@pytest.fixture
+def client(db_path, photo_dir):
+    """A TestClient using the test database, the temp photo folder, and a date of TODAY."""
 
     def get_test_db():
         # A file, not ":memory:": each in-memory connection is its own separate,
@@ -38,5 +44,6 @@ def client(db_path):
 
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_today] = lambda: TODAY
+    app.dependency_overrides[get_photo_dir] = lambda: photo_dir
     yield TestClient(app)
     app.dependency_overrides.clear()  # don't leak fakes into other test files

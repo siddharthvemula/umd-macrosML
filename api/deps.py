@@ -1,15 +1,17 @@
 # Shared "dependencies" that FastAPI hands to endpoints: a database connection,
-# today's date, and the CLIP photo scorer. Endpoints ask for them as parameters instead
-# of creating them, so tests can swap in a test database, a fixed date, or a fake
-# scorer (app.dependency_overrides).
+# today's date, the CLIP photo scorer, and the folder for saved plate photos. Endpoints
+# ask for them as parameters instead of creating them, so tests can swap in a test
+# database, a fixed date, a fake scorer, or a temp folder (app.dependency_overrides).
 
 import sqlite3
 from datetime import date, datetime
 from functools import lru_cache
+from pathlib import Path
 from typing import Iterator
 from zoneinfo import ZoneInfo
 
 from db.database import DEFAULT_DB_PATH, connect
+from ml.photo_store import DEFAULT_PHOTO_DIR
 from ml.recognizer import ClipScorer, ImageTextScorer
 
 # UMD's dining halls run on Eastern time. A server hosted elsewhere (often UTC) would
@@ -57,3 +59,12 @@ def get_scorer() -> ImageTextScorer:
         def recognize_photo(scorer: ImageTextScorer = Depends(get_scorer)): ...
     """
     return ClipScorer()
+
+
+def get_photo_dir() -> Path:
+    """Return the folder where plate photos are saved as training data.
+
+    Example:
+        get_photo_dir()  # -> Path(".../ml/training_photos")
+    """
+    return DEFAULT_PHOTO_DIR

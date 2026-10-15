@@ -20,3 +20,6 @@ dist/
 # ML evaluation photos: keep them local; only the labels file is committed
 ml/eval_photos/*
 !ml/eval_photos/labels.csv
+
+# Plate photos saved by POST /recognize as training data: personal and big, keep local
+ml/training_photos/

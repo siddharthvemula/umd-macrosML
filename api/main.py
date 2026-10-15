@@ -1,22 +1,26 @@
 # The FastAPI backend: serves the menus and nutrition the scraper saved to the
 # database, lets a student log meals and see their daily totals, and guesses which
-# dishes are on a plate photo (POST /recognize). Run it locally with
+# dishes are on a plate photo (POST /recognize), saving each photo so the dishes logged
+# from it become ML training data. Run it locally with
 #   .venv/bin/uvicorn api.main:app --reload
 # then open http://127.0.0.1:8000/docs to try the endpoints in the browser.
 
 import sqlite3
 from datetime import date
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 
-from api.deps import get_db, get_scorer, get_today
+from api.deps import get_db, get_photo_dir, get_scorer, get_today
 from api.schemas import (
     DailySummaryOut, GuessOut, HallOut, MealLogIn, MealLogOut, MenuItemOut, MenuOut,
     NutritionOut, RecognizeOut,
 )
 from db.database import (
     MealLog, delete_meal_log, get_daily_totals, get_meal_logs, get_menu, get_nutrition, log_meal,
+    photo_exists, save_photo,
 )
+from ml.photo_store import save_photo_file
 from ml.recognizer import BadPhotoError, ImageTextScorer, load_photo, rank_menu_items
 from scraper.daily_scrape import HALLS
 
@@ -113,6 +117,7 @@ def recognize_photo(
     conn: sqlite3.Connection = Depends(get_db),
     today: date = Depends(get_today),
     scorer: ImageTextScorer = Depends(get_scorer),
+    photo_dir: Path = Depends(get_photo_dir),
 ) -> RecognizeOut:
     """Guess which of today's dishes are on a plate photo.
 
@@ -122,8 +127,11 @@ def recognize_photo(
         meal: optional, e.g. "Lunch". Without it, every dish served today is a candidate.
 
     Returns:
-        Top 5 guesses, best first, each with nutrition so it can be logged right away.
-        guesses is [] if no menu is stored for today (or for that meal).
+        Top 5 guesses, best first, each with nutrition so it can be logged right away,
+        plus photo_id: the photo is saved, and POST /meals with that photo_id links a
+        logged dish to it as a training label.
+        guesses is [] (and photo_id null, nothing saved) if no menu is stored for today
+        (or for that meal).
         400 for a file that isn't an image, 413 if it's over 10 MB, 404 for an unknown hall.
 
     Example:
@@ -152,8 +160,16 @@ def recognize_photo(
         rows_by_name.setdefault(row.name, row)
 
     guesses = rank_menu_items(image, list(rows_by_name), scorer)
+
+    # Save only photos someone could label: with no guesses there's no menu to pick from.
+    # The file is written before the database row, so a row never points to a missing file.
+    photo_id = None
+    if guesses:
+        filename = save_photo_file(photo_dir, data)
+        photo_id = save_photo(conn, today, hall_name, meal, filename)
+
     return RecognizeOut(
-        hall=hall, date=today, meal=meal,
+        hall=hall, date=today, meal=meal, photo_id=photo_id,
         guesses=[
             GuessOut(
                 recipe_id=rows_by_name[guess.name].recipe_id,
@@ -183,7 +199,7 @@ def to_meal_log_out(log: MealLog) -> MealLogOut:
     """
     return MealLogOut(
         id=log.id, date=log.date, recipe_id=log.recipe_id, name=log.name,
-        servings=log.servings, logged_at=log.logged_at,
+        servings=log.servings, logged_at=log.logged_at, photo_id=log.photo_id,
         calories=round_macro(log.calories * log.servings),
         protein_g=round_macro(log.protein_g * log.servings),
         carbs_g=round_macro(log.carbs_g * log.servings),
@@ -200,16 +216,20 @@ def create_meal_log(
     """Log that the student ate some servings of a dish.
 
     Body:
-        {"recipe_id": "111*1", "servings": 1.5, "date": "2026-10-12"}  (date optional)
+        {"recipe_id": "111*1", "servings": 1.5, "date": "2026-10-12", "photo_id": 7}
+        (date and photo_id optional; photo_id comes from POST /recognize)
 
     Returns:
-        201 with the new log. 404 if we have no nutrition for the dish.
+        201 with the new log. 404 if we have no nutrition for the dish, or no such photo.
         422 (automatic) if servings isn't in (0, 5].
 
     Example:
         POST /meals {"recipe_id": "111*1", "servings": 2}  # -> {"id": 1, "calories": 219.6, ...}
     """
-    log = log_meal(conn, meal.log_date or today, meal.recipe_id, meal.servings)
+    # Checked here so a typo'd photo_id fails loudly instead of saving a broken label.
+    if meal.photo_id is not None and not photo_exists(conn, meal.photo_id):
+        raise HTTPException(status_code=404, detail=f"No photo with id {meal.photo_id}.")
+    log = log_meal(conn, meal.log_date or today, meal.recipe_id, meal.servings, meal.photo_id)
     if log is None:
         raise HTTPException(
             status_code=404, detail=f"Can't log '{meal.recipe_id}': no nutrition stored for it."

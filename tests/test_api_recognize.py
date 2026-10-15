@@ -10,7 +10,7 @@ from PIL import Image
 from api.deps import get_scorer
 from api.main import MAX_PHOTO_BYTES, app
 from conftest import TODAY
-from db.database import connect, save_menu, save_nutrition
+from db.database import connect, photo_exists, save_menu, save_nutrition
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
 
@@ -109,6 +109,31 @@ def test_no_menu_today_gives_empty_guesses(client, scorer):
 
     assert response.status_code == 200
     assert response.json()["guesses"] == []
+
+
+def test_photo_is_saved_with_an_id(client, db_path, photo_dir, scorer):
+    seed_menu(db_path)
+    data = png_bytes()
+    photo_id = post_photo(client, data).json()["photo_id"]
+
+    [saved_file] = photo_dir.iterdir()
+    assert saved_file.read_bytes() == data
+    conn = connect(db_path)
+    assert photo_exists(conn, photo_id)
+    conn.close()
+
+
+def test_photo_with_no_guesses_is_not_saved(client, photo_dir, scorer):
+    body = post_photo(client, png_bytes()).json()
+
+    assert body["photo_id"] is None
+    assert not photo_dir.exists()
+
+
+def test_bad_photo_is_not_saved(client, db_path, photo_dir, scorer):
+    seed_menu(db_path)
+    post_photo(client, b"this is not a photo")
+    assert not photo_dir.exists()
 
 
 def test_non_image_file_is_400(client, db_path, scorer):
