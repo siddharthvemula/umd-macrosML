@@ -28,8 +28,10 @@ export default function PhotoLogView({ hallId, onLogged }) {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [guesses, setGuesses] = useState(null)
+  // The server's id for the analyzed photo; every dish logged from it is linked to it.
+  const [photoId, setPhotoId] = useState(null)
   const [error, setError] = useState(null)
-  const { loggingId, logResult, handleLog } = useMealLogger(onLogged)
+  const { loggingId, logResult, handleLog } = useMealLogger(onLogged, photoId)
 
   // Blob URLs hold the photo in memory until revoked. Free the old one when a new photo
   // replaces it, and the last one when the screen goes away.
@@ -49,9 +51,11 @@ export default function PhotoLogView({ hallId, onLogged }) {
     setAnalyzing(true)
     setError(null)
     setGuesses(null)
+    setPhotoId(null)
     try {
       const result = await recognizePhoto(photoFile, hallId, mealName)
       setGuesses(result.guesses)
+      setPhotoId(result.photo_id)
     } catch (err) {
       setError(err.message)
     } finally {

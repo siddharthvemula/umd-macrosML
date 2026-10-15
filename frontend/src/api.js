@@ -100,14 +100,20 @@ export function getMenu(hall, date) {
  *
  * @param {string} recipeId - e.g. "080603*4".
  * @param {number} servings - Between 0 (exclusive) and 5, e.g. 1.5.
+ * @param {number|null} [photoId] - The plate photo this dish was picked from (from
+ *   recognizePhoto()), which turns the log into an ML training label. Leave out for menu logs.
  * @returns {Promise<object>} The new log, with macros already multiplied by servings.
  * @example await logMeal('111*1', 2)  // -> { id: 1, name: 'Banana', servings: 2, calories: 219.6, ... }
+ * @example await logMeal('111*1', 1, 7)  // same, plus photo_id: 7
  */
-export function logMeal(recipeId, servings) {
+export function logMeal(recipeId, servings, photoId) {
+  const body = { recipe_id: recipeId, servings }
+  // Only send photo_id when there is one, so menu logs look exactly as before.
+  if (photoId != null) body.photo_id = photoId
   return request('/meals', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ recipe_id: recipeId, servings }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -151,8 +157,9 @@ export function getSummary(date) {
  * @param {File|Blob} photo - The image the user picked or took.
  * @param {string} hall - Hall ID, e.g. "yahentamitsi".
  * @param {string} [meal] - e.g. "Lunch"; leave out (or "") to consider the whole day's menu.
- * @returns {Promise<{hall: string, date: string, meal: string|null, guesses: object[]}>}
- *   Each guess has recipe_id, name, score (0-1) and nutrition.
+ * @returns {Promise<{hall: string, date: string, meal: string|null, photo_id: number|null,
+ *   guesses: object[]}>} Each guess has recipe_id, name, score (0-1) and nutrition.
+ *   photo_id is the saved photo (null if there were no guesses); pass it to logMeal().
  * @example await recognizePhoto(file, 'yahentamitsi', 'Lunch')  // -> { guesses: [{ name: 'Banana', score: 0.42, ... }] }
  */
 export function recognizePhoto(photo, hall, meal) {

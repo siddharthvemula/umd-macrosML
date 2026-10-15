@@ -24,7 +24,9 @@ const SALSA = {
   nutrition: { calories: 10, protein_g: 0, carbs_g: 2, fat_g: 0 },
 }
 
-const resultOf = (guesses) => ({ hall: 'yahentamitsi', date: '2026-10-15', meal: null, guesses })
+const resultOf = (guesses, photoId = 7) => ({
+  hall: 'yahentamitsi', date: '2026-10-15', meal: null, photo_id: photoId, guesses,
+})
 
 /**
  * Renders the photo screen for Yahentamitsi and picks the plate photo.
@@ -74,9 +76,23 @@ describe('PhotoLogView', () => {
     const tacoButtons = await screen.findByRole('group', { name: 'Log Beef Tacos' })
     await userEvent.click(within(tacoButtons).getByRole('button', { name: '1.5x' }))
 
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5)
+    // 7 is the photo_id from the recognize result: this log becomes a training label.
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 7)
     expect(await screen.findByText('Logged 1.5x Beef Tacos (376 cal).')).toBeInTheDocument()
     expect(onLogged).toHaveBeenCalledTimes(1)
+  })
+
+  it("links logs to the newest photo's id after a re-analyze", async () => {
+    recognizePhoto.mockResolvedValueOnce(resultOf([TACOS], 7)).mockResolvedValueOnce(resultOf([TACOS], 8))
+    logMeal.mockResolvedValue({ id: 1, calories: 250 })
+    await renderAndUpload()
+    await screen.findByText('Beef Tacos')
+
+    await userEvent.selectOptions(screen.getByLabelText('Meal'), 'Lunch')
+    const tacoButtons = await screen.findByRole('group', { name: 'Log Beef Tacos' })
+    await userEvent.click(within(tacoButtons).getByRole('button', { name: '1x' }))
+
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1, 8)
   })
 
   it("shows the server's message when the photo can't be read", async () => {
