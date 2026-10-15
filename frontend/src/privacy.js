@@ -5,8 +5,8 @@
 
 import { getDeviceId } from './device.js'
 
-// TODO before deploy: the address students email to have their data deleted.
-export const CONTACT_EMAIL = 'your-email@example.com'
+// The address students email to have their data deleted.
+export const CONTACT_EMAIL = 'svemula@terpmail.umd.edu'
 
 const ACCEPTED_KEY = 'macros.photoNoticeAccepted'
 
