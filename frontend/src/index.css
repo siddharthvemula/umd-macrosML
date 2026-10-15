@@ -238,3 +238,39 @@ h1 {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Privacy notice: a bordered box on the photo screen, and the same text in the footer. */
+.photo-notice {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--umd-red);
+  border-radius: 8px;
+  background: white;
+}
+
+.privacy-details ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.privacy-details li {
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.privacy-disclaimer {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.app-footer {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.app-footer summary {
+  cursor: pointer;
+}

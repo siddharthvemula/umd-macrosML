@@ -29,6 +29,8 @@ describe('App', () => {
     vi.resetAllMocks()
     URL.createObjectURL = vi.fn(() => 'blob:fake-preview')
     URL.revokeObjectURL = vi.fn()
+    window.localStorage.clear()
+    window.localStorage.setItem('macros.photoNoticeAccepted', 'yes')
     getHalls.mockResolvedValue([
       { id: 'south_campus', name: 'South Campus' },
       { id: 'yahentamitsi', name: 'Yahentamitsi' },
@@ -51,6 +53,15 @@ describe('App', () => {
 
     await userEvent.upload(screen.getByLabelText('Plate photo'), new File(['x'], 'plate.jpg', { type: 'image/jpeg' }))
     expect(recognizePhoto).toHaveBeenCalledWith(expect.any(File), 'yahentamitsi', '')
+  })
+
+  it('has a privacy section in the footer with this device\'s code', async () => {
+    window.localStorage.setItem('macros.deviceId', 'abcd1234-0000-4000-8000-000000000000')
+    render(<App />)
+
+    await userEvent.click(screen.getByText('Privacy'))
+    expect(screen.getByText(/only the app's developer can see them/i)).toBeVisible()
+    expect(screen.getByText('abcd1234')).toBeInTheDocument()
   })
 
   it("shows the API's error when the halls can't load", async () => {

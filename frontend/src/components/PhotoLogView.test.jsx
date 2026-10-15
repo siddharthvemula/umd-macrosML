@@ -45,6 +45,31 @@ describe('PhotoLogView', () => {
     // jsdom has no blob: URLs, so fake the two functions the preview uses.
     URL.createObjectURL = vi.fn(() => 'blob:fake-preview')
     URL.revokeObjectURL = vi.fn()
+    // Most tests are about uploading, so start past the privacy notice (tested below).
+    window.localStorage.clear()
+    window.localStorage.setItem('macros.photoNoticeAccepted', 'yes')
+  })
+
+  it('shows the privacy notice instead of the camera until it is accepted', async () => {
+    window.localStorage.clear()
+    render(<PhotoLogView hallId="yahentamitsi" />)
+
+    expect(screen.getByRole('region', { name: 'Photo privacy notice' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Plate photo')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'I understand' }))
+    expect(screen.getByLabelText('Plate photo')).toBeInTheDocument()
+  })
+
+  it('remembers the accepted notice on later visits', async () => {
+    window.localStorage.clear()
+    const { unmount } = render(<PhotoLogView hallId="yahentamitsi" />)
+    await userEvent.click(screen.getByRole('button', { name: 'I understand' }))
+    unmount()
+
+    render(<PhotoLogView hallId="yahentamitsi" />)
+    expect(screen.getByLabelText('Plate photo')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'I understand' })).not.toBeInTheDocument()
   })
 
   it('uploads the chosen photo and shows the ranked guesses with their scores', async () => {

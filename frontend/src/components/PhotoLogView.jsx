@@ -2,14 +2,17 @@
 // recognizer's top guesses from today's menu, and log the right ones with portion buttons.
 // A dish the recognizer missed can be found with "not listed? search today's menu".
 // Every log here carries the photo's id, so it becomes a training label.
+// Photos are saved, so the camera only appears after the privacy notice is accepted.
 // It owns the state and talks to the API; GuessList and MenuSearch just draw.
 
 import { useEffect, useState } from 'react'
 import { getMenu, recognizePhoto } from '../api.js'
+import { acceptPhotoNotice, hasAcceptedPhotoNotice } from '../privacy.js'
 import { useMealLogger } from '../useMealLogger.js'
 import GuessList from './GuessList.jsx'
 import LogBanner from './LogBanner.jsx'
 import MenuSearch from './MenuSearch.jsx'
+import { PhotoNotice } from './PrivacyNotice.jsx'
 
 // "" means "any meal": the backend then picks from the whole day's menu.
 const MEALS = ['Breakfast', 'Brunch', 'Lunch', 'Dinner']
@@ -25,6 +28,8 @@ const MEALS = ['Breakfast', 'Brunch', 'Lunch', 'Dinner']
  * @example <PhotoLogView key={hallId} hallId="yahentamitsi" onLogged={() => setLogCount((c) => c + 1)} />
  */
 export default function PhotoLogView({ hallId, onLogged }) {
+  // Read once when the screen appears (a function, so localStorage isn't read on every render).
+  const [noticeAccepted, setNoticeAccepted] = useState(hasAcceptedPhotoNotice)
   const [meal, setMeal] = useState('')
   const [photo, setPhoto] = useState(null)
   // A temporary blob: URL so <img> can show the photo before (and without) uploading it.
@@ -106,6 +111,23 @@ export default function PhotoLogView({ hallId, onLogged }) {
   function selectMeal(newMeal) {
     setMeal(newMeal)
     if (photo) analyze(photo, newMeal)
+  }
+
+  /**
+   * Remembers the student accepted the notice and shows the camera input.
+   */
+  function handleAcceptNotice() {
+    acceptPhotoNotice()
+    setNoticeAccepted(true)
+  }
+
+  if (!noticeAccepted) {
+    return (
+      <section className="photo-log">
+        <h2>Log from a photo</h2>
+        <PhotoNotice onAccept={handleAcceptNotice} />
+      </section>
+    )
   }
 
   return (

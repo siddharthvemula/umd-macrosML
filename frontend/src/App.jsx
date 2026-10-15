@@ -1,6 +1,7 @@
 // The app's root component: the page header, today's dashboard, the shared hall picker,
 // and the photo and menu screens. It connects them: when either screen logs a dish, the
-// dashboard reloads, and both screens follow the one hall picker.
+// dashboard reloads, and both screens follow the one hall picker. The footer holds the
+// privacy notice, so it's always one tap away.
 
 import { useEffect, useState } from 'react'
 import { getHalls } from './api.js'
@@ -8,6 +9,7 @@ import DashboardView from './components/DashboardView.jsx'
 import HallPicker from './components/HallPicker.jsx'
 import MenuView from './components/MenuView.jsx'
 import PhotoLogView from './components/PhotoLogView.jsx'
+import { PrivacyDetails } from './components/PrivacyNotice.jsx'
 
 /**
  * Top-level layout of the page.
@@ -50,6 +52,14 @@ export default function App() {
           <MenuView key={`menu-${hallId}`} hallId={hallId} onLogged={handleLogged} />
         </>
       )}
+
+      <footer className="app-footer">
+        {/* <details> is a built-in show/hide box: no state or JavaScript needed. */}
+        <details>
+          <summary>Privacy</summary>
+          <PrivacyDetails />
+        </details>
+      </footer>
     </main>
   )
 }
