@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 from PIL import Image
 
-from db.database import connect, save_menu
+from db.database import connect, save_menu, save_nutrition
 from ml.evaluate import (
     LabeledPhoto,
     append_history,
@@ -18,6 +18,7 @@ from ml.evaluate import (
     summarize,
 )
 from ml.recognizer import Guess
+from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
 
 DAY = date(2026, 10, 14)
@@ -42,11 +43,28 @@ def guesses(*names: str) -> list[Guess]:
     return [Guess(name=name, score=0.1) for name in names]
 
 
+# On the lunch menu, but UMD published no nutrition for it, so /recognize never guesses it.
+NO_NUTRITION_DISH = "Maryland Crab Soup"
+
+
+def make_label(name: str) -> NutritionLabel:
+    """A minimal nutrition label, so a menu dish counts as loggable."""
+    return NutritionLabel(
+        name=name, serving_size="1 each", calories=100.0, protein_g=1.0, carbs_g=1.0,
+        fat_g=1.0, sat_fat_g=None, sugar_g=None, fiber_g=None, sodium_mg=None,
+        ingredients="", allergens=[],
+    )
+
+
 @pytest.fixture
 def conn(tmp_path):
-    """A temporary database with one Yahentamitsi lunch menu."""
+    """A temporary database with one Yahentamitsi lunch menu: LUNCH (with nutrition) plus
+    NO_NUTRITION_DISH (without)."""
     connection = connect(str(tmp_path / "test.db"))
     items = [MenuItem(name=name, recipe_id=f"{i}*1", station="Grill", meal="Lunch") for i, name in enumerate(LUNCH)]
+    for item in items:
+        save_nutrition(connection, item.recipe_id, make_label(item.name))
+    items.append(MenuItem(name=NO_NUTRITION_DISH, recipe_id="99*1", station="Soup", meal="Lunch"))
     save_menu(connection, DAY, "Yahentamitsi", items)
     yield connection
     connection.close()
@@ -96,6 +114,11 @@ def test_read_labels_skips_menu_unavailable_and_splits_on_semicolon(tmp_path):
 
 def test_load_candidates_matches_hall_case_insensitively(conn):
     assert load_candidates(conn, DAY, "yahentamitsi", "Lunch") == LUNCH
+
+
+def test_load_candidates_leaves_out_dishes_without_nutrition(conn):
+    # Same rule as POST /recognize, so the eval scores what the app would really show.
+    assert NO_NUTRITION_DISH not in load_candidates(conn, DAY, "yahentamitsi", "Lunch")
 
 
 def test_load_candidates_with_empty_meal_uses_whole_day(conn):

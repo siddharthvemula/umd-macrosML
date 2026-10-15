@@ -93,6 +93,9 @@ def read_labels(path: Path = LABELS_PATH) -> list[LabeledPhoto]:
 def load_candidates(conn: sqlite3.Connection, day: date, hall: str, meal: str) -> list[str]:
     """Get the dish names on one meal's stored menu: the recognizer's candidate list.
 
+    Like POST /recognize, only dishes with nutrition count: the app never guesses a dish
+    it can't log, so scoring against those would measure a different problem.
+
     Args:
         day: the menu date.
         hall: hall name in any capitalization (labels say "yahentamitsi", the DB "Yahentamitsi").
@@ -100,7 +103,7 @@ def load_candidates(conn: sqlite3.Connection, day: date, hall: str, meal: str) -
             "Any" in the app, where the recognizer also used the whole day's menu).
 
     Returns:
-        Unique dish names in menu order. [] if nothing is stored.
+        Unique dish names in menu order. [] if nothing is stored (or nothing has nutrition).
 
     Example:
         load_candidates(conn, date(2026, 10, 14), "yahentamitsi", "Lunch")  # -> ["Spanish Rice", ...]
@@ -108,7 +111,7 @@ def load_candidates(conn: sqlite3.Connection, day: date, hall: str, meal: str) -
     rows = [
         row
         for row in get_menu(conn, day, _stored_hall_name(conn, hall))
-        if not meal or row.meal.lower() == meal.lower()
+        if row.nutrition is not None and (not meal or row.meal.lower() == meal.lower())
     ]
     return list(dict.fromkeys(row.name for row in rows))
 
@@ -194,14 +197,14 @@ def evaluate(
     for labeled in photos:
         candidates = load_candidates(conn, labeled.day, labeled.hall, labeled.meal)
         if not candidates:
-            print(f"Skipping {labeled.photo}: no {labeled.meal or 'day'} menu stored for {labeled.day}")
+            print(f"Skipping {labeled.photo}: no {labeled.meal or 'day'} dishes with nutrition stored for {labeled.day}")
             continue
 
         unknown = find_unknown_dishes(labeled.dishes, candidates)
         for name in unknown:
             close = difflib.get_close_matches(name, candidates, n=1)
             hint = f" (did you mean '{close[0]}'?)" if close else ""
-            print(f"Warning: {labeled.photo}: '{name}' is not on the menu{hint}; not scored")
+            print(f"Warning: {labeled.photo}: '{name}' is not on the menu or has no nutrition{hint}; not scored")
         true_dishes = [name for name in labeled.dishes if name not in unknown]
         if not true_dishes:
             print(f"Skipping {labeled.photo}: none of its labeled dishes are on the menu")
