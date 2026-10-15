@@ -141,3 +141,24 @@ export function deleteMeal(logId) {
 export function getSummary(date) {
   return request(`/summary${queryString({ date })}`)
 }
+
+/**
+ * Uploads a plate photo and gets the recognizer's top guesses from today's menu.
+ *
+ * Sent as multipart form data (how browsers upload files), not JSON. We don't set
+ * Content-Type ourselves: the browser has to add the multipart "boundary" to it.
+ *
+ * @param {File|Blob} photo - The image the user picked or took.
+ * @param {string} hall - Hall ID, e.g. "yahentamitsi".
+ * @param {string} [meal] - e.g. "Lunch"; leave out (or "") to consider the whole day's menu.
+ * @returns {Promise<{hall: string, date: string, meal: string|null, guesses: object[]}>}
+ *   Each guess has recipe_id, name, score (0-1) and nutrition.
+ * @example await recognizePhoto(file, 'yahentamitsi', 'Lunch')  // -> { guesses: [{ name: 'Banana', score: 0.42, ... }] }
+ */
+export function recognizePhoto(photo, hall, meal) {
+  const form = new FormData()
+  form.append('photo', photo)
+  form.append('hall', hall)
+  if (meal) form.append('meal', meal)
+  return request('/recognize', { method: 'POST', body: form })
+}

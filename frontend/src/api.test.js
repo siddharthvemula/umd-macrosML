@@ -2,7 +2,15 @@
 // bodies we send and how we handle answers, without a running backend.
 
 import { describe, expect, it, vi } from 'vitest'
-import { ApiError, deleteMeal, getHalls, getMenu, getSummary, logMeal } from './api.js'
+import {
+  ApiError,
+  deleteMeal,
+  getHalls,
+  getMenu,
+  getSummary,
+  logMeal,
+  recognizePhoto,
+} from './api.js'
 
 /**
  * Replaces the global fetch with a fake that always returns one response.
@@ -47,6 +55,39 @@ describe('api', () => {
     expect(url).toBe('/api/meals')
     expect(options.method).toBe('POST')
     expect(JSON.parse(options.body)).toEqual({ recipe_id: '111*1', servings: 1.5 })
+  })
+
+  it('recognizePhoto POSTs the photo, hall and meal as form data', async () => {
+    const fetchMock = fakeFetch(200, { guesses: [] })
+    const photo = new File(['fake pixels'], 'plate.jpg', { type: 'image/jpeg' })
+
+    await recognizePhoto(photo, 'yahentamitsi', 'Lunch')
+
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/recognize')
+    expect(options.method).toBe('POST')
+    expect(options.headers).toBeUndefined()
+    expect(options.body.get('photo').name).toBe('plate.jpg')
+    expect(options.body.get('hall')).toBe('yahentamitsi')
+    expect(options.body.get('meal')).toBe('Lunch')
+  })
+
+  it('recognizePhoto leaves out an empty meal', async () => {
+    const fetchMock = fakeFetch(200, { guesses: [] })
+
+    await recognizePhoto(new File(['x'], 'plate.jpg'), 'yahentamitsi', '')
+
+    expect(fetchMock.mock.calls[0][1].body.has('meal')).toBe(false)
+  })
+
+  it('recognizePhoto turns a 400 for a non-image into an ApiError', async () => {
+    fakeFetch(400, { detail: 'That file is not a readable image.' })
+
+    const error = await recognizePhoto(new File(['x'], 'notes.txt'), 'yahentamitsi').catch((e) => e)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.status).toBe(400)
+    expect(error.message).toBe('That file is not a readable image.')
   })
 
   it('deleteMeal returns null for the empty 204 response', async () => {

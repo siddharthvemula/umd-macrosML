@@ -114,3 +114,4 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Errors: 400 not an image, 413 over 10 MB, 404 unknown hall; no menu (or no dishes for that meal) → 200 with `guesses: []`,** same rule as `/menu`. `meal` matches case-insensitively.
 - **Plain `def` endpoint, not `async def`.** CLIP is slow CPU work; FastAPI runs plain `def` on a worker thread, so one photo doesn't block other requests.
 - **Not yet: filtering the ~200 candidates.** That's an ML decision for when there are more eval photos. Real-CLIP check on plate 03: 4 of the top 5 were on the plate.
+- **Step 5a: `recognizePhoto()` in `api.js` sends `FormData` and doesn't set `Content-Type`.** The browser has to write the multipart header itself, because it includes a random "boundary" string. An empty `meal` is left out, so the backend uses the whole day's menu.
