@@ -1,12 +1,15 @@
 // The "log from a photo" screen: pick a meal, take or choose a plate photo, see the
 // recognizer's top guesses from today's menu, and log the right ones with portion buttons.
-// It owns the state and talks to the API; GuessList just draws the guesses.
+// A dish the recognizer missed can be found with "not listed? search today's menu".
+// Every log here carries the photo's id, so it becomes a training label.
+// It owns the state and talks to the API; GuessList and MenuSearch just draw.
 
 import { useEffect, useState } from 'react'
-import { recognizePhoto } from '../api.js'
+import { getMenu, recognizePhoto } from '../api.js'
 import { useMealLogger } from '../useMealLogger.js'
 import GuessList from './GuessList.jsx'
 import LogBanner from './LogBanner.jsx'
+import MenuSearch from './MenuSearch.jsx'
 
 // "" means "any meal": the backend then picks from the whole day's menu.
 const MEALS = ['Breakfast', 'Brunch', 'Lunch', 'Dinner']
@@ -31,6 +34,11 @@ export default function PhotoLogView({ hallId, onLogged }) {
   // The server's id for the analyzed photo; every dish logged from it is linked to it.
   const [photoId, setPhotoId] = useState(null)
   const [error, setError] = useState(null)
+  // Today's menu for the correction search: null until the student first opens it, then
+  // kept (same hall and day) so later photos don't reload it.
+  const [menuItems, setMenuItems] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [menuError, setMenuError] = useState(null)
   const { loggingId, logResult, handleLog } = useMealLogger(onLogged, photoId)
 
   // Blob URLs hold the photo in memory until revoked. Free the old one when a new photo
@@ -60,6 +68,21 @@ export default function PhotoLogView({ hallId, onLogged }) {
       setError(err.message)
     } finally {
       setAnalyzing(false)
+    }
+  }
+
+  /**
+   * Opens the "search today's menu" box, loading the menu the first time.
+   */
+  async function openSearch() {
+    setSearchOpen(true)
+    if (menuItems) return
+    setMenuError(null)
+    try {
+      const menu = await getMenu(hallId)
+      setMenuItems(menu.items)
+    } catch (err) {
+      setMenuError(err.message)
     }
   }
 
@@ -121,6 +144,28 @@ export default function PhotoLogView({ hallId, onLogged }) {
       {error && <p className="notice notice--error">{error}</p>}
       <LogBanner result={logResult} />
       {guesses && <GuessList guesses={guesses} loggingId={loggingId} onLog={handleLog} />}
+
+      {/* Only with a saved photo: a correction is only useful linked to the photo it fixes. */}
+      {guesses && photoId != null && !searchOpen && (
+        <button type="button" className="link-button" onClick={openSearch}>
+          Not listed? Search today's menu
+        </button>
+      )}
+      {guesses && photoId != null && searchOpen && (
+        <>
+          {menuError && <p className="notice notice--error">{menuError}</p>}
+          {!menuItems && !menuError && <p className="notice">Loading today's menu…</p>}
+          {menuItems && (
+            <MenuSearch
+              items={menuItems}
+              meal={meal}
+              excludeIds={guesses.map((guess) => guess.recipe_id)}
+              loggingId={loggingId}
+              onLog={handleLog}
+            />
+          )}
+        </>
+      )}
     </section>
   )
 }

@@ -4,13 +4,14 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, logMeal, recognizePhoto } from '../api.js'
+import { ApiError, getMenu, logMeal, recognizePhoto } from '../api.js'
 import PhotoLogView from './PhotoLogView.jsx'
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal()), // keep the real ApiError class
   recognizePhoto: vi.fn(),
   logMeal: vi.fn(),
+  getMenu: vi.fn(),
 }))
 
 const PLATE = new File(['fake pixels'], 'plate.jpg', { type: 'image/jpeg' })
@@ -93,6 +94,41 @@ describe('PhotoLogView', () => {
     await userEvent.click(within(tacoButtons).getByRole('button', { name: '1x' }))
 
     expect(logMeal).toHaveBeenCalledWith('111*1', 1, 8)
+  })
+
+  it('logs a dish the recognizer missed from the menu search, linked to the photo', async () => {
+    const rice = { ...TACOS, recipe_id: '333*1', name: 'Spanish Rice', meal: 'Lunch', station: 'Grill' }
+    recognizePhoto.mockResolvedValue(resultOf([TACOS], 7))
+    getMenu.mockResolvedValue({ items: [{ ...TACOS, meal: 'Lunch', station: 'Grill' }, rice] })
+    logMeal.mockResolvedValue({ id: 2, calories: 250 })
+    await renderAndUpload()
+
+    await userEvent.click(await screen.findByRole('button', { name: "Not listed? Search today's menu" }))
+    await userEvent.type(await screen.findByLabelText("Search today's menu"), 'rice')
+    const riceButtons = screen.getByRole('group', { name: 'Log Spanish Rice' })
+    await userEvent.click(within(riceButtons).getByRole('button', { name: '1x' }))
+
+    expect(getMenu).toHaveBeenCalledWith('yahentamitsi')
+    expect(logMeal).toHaveBeenCalledWith('333*1', 1, 7)
+  })
+
+  it('does not list a dish twice when it is already a guess', async () => {
+    recognizePhoto.mockResolvedValue(resultOf([TACOS], 7))
+    getMenu.mockResolvedValue({ items: [{ ...TACOS, meal: 'Lunch', station: 'Grill' }] })
+    await renderAndUpload()
+
+    await userEvent.click(await screen.findByRole('button', { name: "Not listed? Search today's menu" }))
+    await userEvent.type(await screen.findByLabelText("Search today's menu"), 'tacos')
+
+    expect(screen.getByText('No dishes match "tacos".')).toBeInTheDocument()
+  })
+
+  it('offers no menu search when there was no photo to correct', async () => {
+    recognizePhoto.mockResolvedValue(resultOf([], null))
+    await renderAndUpload()
+    await screen.findByText("No dishes with nutrition info on today's menu for this meal.")
+
+    expect(screen.queryByRole('button', { name: /Not listed/ })).not.toBeInTheDocument()
   })
 
   it("shows the server's message when the photo can't be read", async () => {
