@@ -1,0 +1,4 @@
+run_date,template,photos,top1,top3,recall_at_5
+2026-10-15,{name},3,0.333,0.667,0.207
+2026-10-15,a photo of {name},3,0.000,0.667,0.215
+2026-10-15,"a photo of {name}, a dining hall dish",3,0.667,0.667,0.326
