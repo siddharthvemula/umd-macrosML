@@ -98,3 +98,9 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Lettuce etc. labeled by what's on the plate** ("Shredded Lettuce", not "Chopped"), even when several stations serve a similar item. Near-duplicate names are a known source of "wrong" top-1 guesses.
 - **Menus scraped ahead (14 days), but they're UMD's plan, not what was served.** Re-scrape on the day (the daily run replaces the day) so eval photos match the final menu.
 - **Step 1: torch, transformers, Pillow, python-multipart pinned in `requirements.txt`.** `ml/spike.py` is a throwaway try-out. First result: on the taco-bar plate, CLIP's #1 guess was right and 5 of its top 10 were on the plate (209 candidates). On the pita plate only the red onion (#1) was right, since the pita/tzatziki details are hard to see.
+- **Step 2: `ml/recognizer.py` injects our own `ImageTextScorer` (a `Protocol` with one `score()` method), not the Hugging Face model.** Faking HF's model would mean copying its tensor outputs; a fake `score()` is 3 lines. `ClipScorer` is the real one and loads CLIP once.
+- **The recognizer takes plain dish names, not DB rows.** It stays independent of SQLite; the eval script and API fetch the menu and map names back to recipe IDs. Duplicate names are scored once.
+- **Softmax in `rank_menu_items`, not in the scorer,** so the fake can return simple numbers and the probability math is still tested. Scores sum to 1 over *all* candidates, not just the top 5.
+- **The prompt template is a parameter (`{name}` slot)** so Step 3 can compare wordings without code changes.
+- **`load_photo` raises `BadPhotoError` for empty, non-image, or truncated bytes** (it decodes the pixels right away), so Step 4 can return a 400 instead of crashing inside the model.
+- **No automated test loads real CLIP** (600 MB). Step 3's eval on real photos is the real check for `ClipScorer`.
