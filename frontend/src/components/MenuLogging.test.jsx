@@ -4,12 +4,11 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getHalls, getMenu, logMeal } from '../api.js'
+import { ApiError, getMenu, logMeal } from '../api.js'
 import MenuView from './MenuView.jsx'
 
 vi.mock('../api.js', async (importOriginal) => ({
   ...(await importOriginal()),
-  getHalls: vi.fn(),
   getMenu: vi.fn(),
   logMeal: vi.fn(),
 }))
@@ -28,14 +27,13 @@ const CRAB_SOUP = {
  * @returns {Promise<HTMLElement>} Banana's group of portion buttons.
  */
 async function renderMenu() {
-  render(<MenuView />)
+  render(<MenuView hallId="south_campus" />)
   return screen.findByRole('group', { name: 'Log Banana' })
 }
 
 describe('logging a dish', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    getHalls.mockResolvedValue([{ id: 'south_campus', name: 'South Campus' }])
     getMenu.mockResolvedValue({ hall: 'south_campus', date: '2026-10-13', items: [BANANA, CRAB_SOUP] })
   })
 
@@ -51,7 +49,7 @@ describe('logging a dish', () => {
 
   it('tells App about a successful log (so the dashboard reloads), but not a failed one', async () => {
     const onLogged = vi.fn()
-    render(<MenuView onLogged={onLogged} />)
+    render(<MenuView hallId="south_campus" onLogged={onLogged} />)
     const bananaButtons = await screen.findByRole('group', { name: 'Log Banana' })
 
     logMeal.mockResolvedValueOnce({ id: 1, calories: 109.8 })

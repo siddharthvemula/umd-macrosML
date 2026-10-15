@@ -115,3 +115,10 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Plain `def` endpoint, not `async def`.** CLIP is slow CPU work; FastAPI runs plain `def` on a worker thread, so one photo doesn't block other requests.
 - **Not yet: filtering the ~200 candidates.** That's an ML decision for when there are more eval photos. Real-CLIP check on plate 03: 4 of the top 5 were on the plate.
 - **Step 5a: `recognizePhoto()` in `api.js` sends `FormData` and doesn't set `Content-Type`.** The browser has to write the multipart header itself, because it includes a random "boundary" string. An empty `meal` is left out, so the backend uses the whole day's menu.
+- **Step 5b: one hall picker for the whole app (`HallPicker`, state in `App`), not one per screen.** You pick the hall once and both the photo and menu screens follow it. `MenuView` now takes `hallId` as a prop instead of loading halls itself.
+- **Switching halls resets screens with `key={hallId}`, not by clearing each state by hand.** A new key makes React start the component fresh, so no old menu, photo or guesses are left over. The old "reset in the change handler" code isn't needed anymore.
+- **Logging logic moved into a custom hook (`useMealLogger`) plus a `LogBanner` component,** shared by the menu and photo screens instead of copying ~20 lines.
+- **The photo is analyzed as soon as it's picked (no "Analyze" button), and changing the meal re-analyzes it.** Inputs are disabled while a request is in flight, so two answers can't race, which is simpler than a `stale` flag.
+- **`<input type="file" accept="image/*" capture="environment">`, no camera library.** Phones open the back camera directly; desktops get a file picker. The preview uses a `blob:` URL that is revoked when replaced, so photos don't pile up in memory.
+- **Scores shown as "% match", with "<1%" for tiny ones.** Softmax over ~200 dishes makes even right guesses small, and "0%" would look broken.
+- **Not done: resizing photos in the browser before upload** (phone photos fit under the 10 MB limit; 413 covers the rest), and **"none of these are right"** (log from the menu for now; corrections are Step 6).
