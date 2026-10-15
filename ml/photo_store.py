@@ -8,7 +8,10 @@ from pathlib import Path
 
 from PIL import Image
 
-DEFAULT_PHOTO_DIR = Path(__file__).parent / "training_photos"
+from config import PHOTO_DIR
+
+# ml/training_photos/ locally; MACROS_PHOTO_DIR overrides it on the server (see config.py).
+DEFAULT_PHOTO_DIR = PHOTO_DIR
 
 # Pillow's format names -> the file extension we save with. iPhones' JPEGs can show up
 # as "MPO" (a JPEG with extra frames), which is still a .jpg.

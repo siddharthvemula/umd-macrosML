@@ -40,6 +40,20 @@ def hall_id(hall_name: str) -> str:
 HALL_NAMES_BY_ID: dict[str, str] = {hall_id(name): name for name in HALLS}
 
 
+@app.get("/health")
+def health_check(conn: sqlite3.Connection = Depends(get_db)) -> dict[str, str]:
+    """Tell a hosting service the server is up and can reach its database.
+
+    Hosts call this every few seconds and restart the server if it stops answering.
+    It runs a trivial query instead of loading CLIP, so it stays fast.
+
+    Example:
+        GET /health  # -> {"status": "ok"}
+    """
+    conn.execute("SELECT 1")
+    return {"status": "ok"}
+
+
 @app.get("/halls")
 def list_halls() -> list[HallOut]:
     """List the dining halls we have menus for.

@@ -137,3 +137,11 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **The menu loads on the first "Not listed?" click, not with every photo,** and stays loaded for later photos at the same hall (switching halls remounts the screen). There's no button when no photo was saved (no guesses), since a correction needs a photo to attach to.
 - **Not done: marking a guess as wrong.** Right now only what you *log* is a label. A guess you skip isn't recorded as "not on the plate". That kind of negative label could come in Phase 5.
 - **Fixed: `evaluate.py` now leaves out dishes without nutrition, the same as `/recognize`.** Before, it scored CLIP against a bigger list than the app ever shows. Test written first. Earlier `eval_history.csv` rows used the old, bigger lists, so the next run isn't an exact comparison with them.
+
+## Deploy (Phase 6)
+- **Hosting not chosen yet.** Compared Fly.io (~$13/mo for 2 GB, recommended), Render (~$25, and its cron can't reach the web server's disk), Railway (~$12–15, same disk problem), HF Spaces (free but files wiped on restart), Oracle/Hetzner VPS (cheap, but you run the server yourself). Checking GitHub Student Pack credits first.
+- **Keep SQLite on the server's disk, not Postgres (yet).** One server and a few students is fine for SQLite. Postgres would mean a second paid service and rewriting all the SQL. Switch when we need several servers or many users.
+- **Step 1: paths come from env vars (`config.py`: `MACROS_DB_PATH`, `MACROS_PHOTO_DIR`, `MACROS_FRONTEND_DIR`), defaulting to the project folders.** The old `DEFAULT_*` names now read from `config.py`, so the scraper, export and evaluate scripts all follow the same setting with no changes. Empty value = unset.
+- **Production entry point `api/server.py` mounts the API at `/api` and the built React app at `/`,** instead of adding `/api` to every route. The frontend already calls `/api/...` (Vite proxy), so the same code works in both places, one origin, no CORS. Tests and local dev still use `api.main:app` directly.
+- **`create_server()` is a factory (`uvicorn --factory`)** so importing it never crashes before `npm run build`; a missing build gives a clear `RuntimeError` instead of a cryptic StaticFiles error.
+- **`GET /health` runs `SELECT 1`, never touches CLIP,** so a host can poll it every few seconds cheaply.

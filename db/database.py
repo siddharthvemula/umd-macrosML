@@ -14,10 +14,12 @@ from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
+from config import DB_PATH
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
 
-DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "macros.db"
+# data/macros.db locally; MACROS_DB_PATH overrides it on the server (see config.py).
+DEFAULT_DB_PATH = DB_PATH
 
 # Two tables:
 #   items        - one row per dish (keyed by UMD's recipe ID) with its nutrition.
