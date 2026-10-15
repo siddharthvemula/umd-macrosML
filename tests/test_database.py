@@ -7,8 +7,9 @@ from datetime import date, timedelta
 
 import pytest
 
+from conftest import DEVICE
 from db.database import (
-    connect, create_tables, delete_meal_log, get_daily_totals, get_meal_logs, get_menu,
+    connect, count_photos, create_tables, delete_meal_log, get_daily_totals, get_meal_logs, get_menu,
     get_nutrition, has_nutrition, log_meal, photo_exists, save_menu, save_nutrition, save_photo,
 )
 from scraper.label_parser import NutritionLabel
@@ -125,54 +126,54 @@ def test_connect_creates_db_file_and_folder(tmp_path):
 
 def test_logged_meal_copies_macros_per_serving(conn):
     save_nutrition(conn, BANANA.recipe_id, make_label())
-    log = log_meal(conn, DAY, BANANA.recipe_id, 2)
+    log = log_meal(conn, DAY, BANANA.recipe_id, 2, device_id=DEVICE)
 
     assert (log.name, log.servings, log.calories, log.date) == ("Banana", 2, 109.8, DAY)
-    assert get_meal_logs(conn, DAY) == [log]
+    assert get_meal_logs(conn, DAY, device_id=DEVICE) == [log]
 
 
 def test_logging_dish_without_nutrition_saves_nothing(conn):
-    assert log_meal(conn, DAY, "nope*1", 1) is None
-    assert get_meal_logs(conn, DAY) == []
+    assert log_meal(conn, DAY, "nope*1", 1, device_id=DEVICE) is None
+    assert get_meal_logs(conn, DAY, device_id=DEVICE) == []
 
 
 def test_rescraped_dish_does_not_change_past_logs(conn):
     save_nutrition(conn, BANANA.recipe_id, make_label())
-    log_meal(conn, DAY, BANANA.recipe_id, 1)
+    log_meal(conn, DAY, BANANA.recipe_id, 1, device_id=DEVICE)
     save_nutrition(conn, BANANA.recipe_id, replace(make_label(), calories=500.0))
 
-    assert get_meal_logs(conn, DAY)[0].calories == 109.8
+    assert get_meal_logs(conn, DAY, device_id=DEVICE)[0].calories == 109.8
 
 
 def test_meal_logs_only_for_requested_day(conn):
     save_nutrition(conn, BANANA.recipe_id, make_label())
-    log_meal(conn, DAY, BANANA.recipe_id, 1)
-    assert get_meal_logs(conn, DAY + timedelta(days=1)) == []
+    log_meal(conn, DAY, BANANA.recipe_id, 1, device_id=DEVICE)
+    assert get_meal_logs(conn, DAY + timedelta(days=1), device_id=DEVICE) == []
 
 
 def test_delete_meal_log(conn):
     save_nutrition(conn, BANANA.recipe_id, make_label())
-    log = log_meal(conn, DAY, BANANA.recipe_id, 1)
+    log = log_meal(conn, DAY, BANANA.recipe_id, 1, device_id=DEVICE)
 
-    assert delete_meal_log(conn, log.id) is True
-    assert get_meal_logs(conn, DAY) == []
-    assert delete_meal_log(conn, log.id) is False  # already gone
+    assert delete_meal_log(conn, log.id, device_id=DEVICE) is True
+    assert get_meal_logs(conn, DAY, device_id=DEVICE) == []
+    assert delete_meal_log(conn, log.id, device_id=DEVICE) is False  # already gone
 
 
 def test_daily_totals_multiply_by_servings(conn):
     save_nutrition(conn, BANANA.recipe_id, make_label())
     save_nutrition(conn, BURGER.recipe_id, replace(make_label("Burger"), calories=240.8, protein_g=15.0))
-    log_meal(conn, DAY, BANANA.recipe_id, 2)
-    log_meal(conn, DAY, BURGER.recipe_id, 0.5)
+    log_meal(conn, DAY, BANANA.recipe_id, 2, device_id=DEVICE)
+    log_meal(conn, DAY, BURGER.recipe_id, 0.5, device_id=DEVICE)
 
-    totals = get_daily_totals(conn, DAY)
+    totals = get_daily_totals(conn, DAY, device_id=DEVICE)
     assert totals.calories == pytest.approx(109.8 * 2 + 240.8 * 0.5)
     assert totals.protein_g == pytest.approx(1.3 * 2 + 15.0 * 0.5)
     assert totals.meal_count == 2
 
 
 def test_daily_totals_for_empty_day_are_zero(conn):
-    totals = get_daily_totals(conn, DAY)
+    totals = get_daily_totals(conn, DAY, device_id=DEVICE)
     assert (totals.calories, totals.protein_g, totals.carbs_g, totals.fat_g, totals.meal_count) == (0, 0, 0, 0, 0)
 
 
@@ -180,22 +181,22 @@ def test_daily_totals_for_empty_day_are_zero(conn):
 
 
 def test_saved_photo_exists_and_unknown_one_does_not(conn):
-    photo_id = save_photo(conn, DAY, "Yahentamitsi", "Lunch", "abc.jpg")
-    assert photo_exists(conn, photo_id)
-    assert not photo_exists(conn, photo_id + 1)
+    photo_id = save_photo(conn, DAY, "Yahentamitsi", "Lunch", "abc.jpg", device_id=DEVICE)
+    assert photo_exists(conn, photo_id, device_id=DEVICE)
+    assert not photo_exists(conn, photo_id + 1, device_id=DEVICE)
 
 
 def test_meal_logged_from_photo_keeps_photo_id(conn):
     save_nutrition(conn, BANANA.recipe_id, make_label())
-    photo_id = save_photo(conn, DAY, "Yahentamitsi", None, "abc.jpg")
-    log_meal(conn, DAY, BANANA.recipe_id, 1, photo_id=photo_id)
-    log_meal(conn, DAY, BANANA.recipe_id, 1)  # logged from the menu instead
+    photo_id = save_photo(conn, DAY, "Yahentamitsi", None, "abc.jpg", device_id=DEVICE)
+    log_meal(conn, DAY, BANANA.recipe_id, 1, photo_id=photo_id, device_id=DEVICE)
+    log_meal(conn, DAY, BANANA.recipe_id, 1, device_id=DEVICE)  # logged from the menu instead
 
-    assert [log.photo_id for log in get_meal_logs(conn, DAY)] == [photo_id, None]
+    assert [log.photo_id for log in get_meal_logs(conn, DAY, device_id=DEVICE)] == [photo_id, None]
 
 
-def test_old_database_gets_photo_id_column_added(tmp_path):
-    # A meal_logs table as it was before photo_id existed, with one logged meal.
+def test_old_database_gets_new_columns_added(tmp_path):
+    # A meal_logs table as it was before photo_id and device_id existed, with one logged meal.
     path = str(tmp_path / "old.db")
     old = sqlite3.connect(path)
     old.execute(
@@ -211,7 +212,31 @@ def test_old_database_gets_photo_id_column_added(tmp_path):
     old.commit()
     old.close()
 
-    conn = connect(path)  # should add the missing column and keep the old row
-    [log] = get_meal_logs(conn, DAY)
-    assert (log.name, log.photo_id) == ("Banana", None)
+    conn = connect(path)  # should add the missing columns and keep the old row
+    row = conn.execute("SELECT name, photo_id, device_id FROM meal_logs").fetchone()
+    assert tuple(row) == ("Banana", None, None)
+    # A log from before devices existed belongs to nobody, so no device sees it.
+    assert get_meal_logs(conn, DAY, device_id=DEVICE) == []
     conn.close()
+
+
+OTHER_DEVICE = "22222222-2222-4222-8222-222222222222"
+
+
+def test_devices_only_see_and_delete_their_own_logs(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    mine = log_meal(conn, DAY, BANANA.recipe_id, 1, device_id=DEVICE)
+    log_meal(conn, DAY, BANANA.recipe_id, 3, device_id=OTHER_DEVICE)
+
+    assert get_meal_logs(conn, DAY, device_id=DEVICE) == [mine]
+    assert get_daily_totals(conn, DAY, device_id=DEVICE).meal_count == 1
+    assert delete_meal_log(conn, mine.id, device_id=OTHER_DEVICE) is False
+    assert get_meal_logs(conn, DAY, device_id=DEVICE) == [mine]
+
+
+def test_photos_belong_to_the_device_that_uploaded_them(conn):
+    photo_id = save_photo(conn, DAY, "Yahentamitsi", "Lunch", "abc.jpg", device_id=DEVICE)
+    assert not photo_exists(conn, photo_id, device_id=OTHER_DEVICE)
+    assert count_photos(conn, DAY, device_id=DEVICE) == 1
+    assert count_photos(conn, DAY, device_id=OTHER_DEVICE) == 0
+    assert count_photos(conn, DAY + timedelta(days=1), device_id=DEVICE) == 0

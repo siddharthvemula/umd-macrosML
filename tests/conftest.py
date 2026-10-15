@@ -1,6 +1,6 @@
 # Shared pytest fixtures for the API tests (pytest loads this file automatically).
 # `client` is a TestClient whose requests use a temporary database file, a temporary
-# photo folder and a fixed "today", swapped in through FastAPI's dependency_overrides,
+# photo folder, a fixed "today" and one device's X-Device-Id header, swapped in through FastAPI's dependency_overrides,
 # so API tests never touch the real database, real training photos, or the real clock.
 
 from datetime import date
@@ -13,6 +13,8 @@ from api.main import app
 from db.database import connect
 
 TODAY = date(2026, 10, 12)
+# The device every `client` request comes from (sent as the X-Device-Id header).
+DEVICE = "11111111-1111-4111-8111-111111111111"
 
 
 @pytest.fixture
@@ -45,5 +47,6 @@ def client(db_path, photo_dir):
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_today] = lambda: TODAY
     app.dependency_overrides[get_photo_dir] = lambda: photo_dir
-    yield TestClient(app)
+    # headers= is sent with every request, like the real frontend does.
+    yield TestClient(app, headers={"X-Device-Id": DEVICE})
     app.dependency_overrides.clear()  # don't leak fakes into other test files

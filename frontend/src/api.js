@@ -1,7 +1,10 @@
 // The only file that talks to the FastAPI backend. Components call these functions
 // instead of building URLs themselves, so tests can fake the API in one place and a
 // backend change only needs updating here. Every URL starts with /api, which Vite's dev
-// server proxies to FastAPI (see vite.config.js).
+// server proxies to FastAPI (see vite.config.js). Every request also carries this
+// device's ID (device.js), so the backend knows whose meals to show.
+
+import { getDeviceId } from './device.js'
 
 const API_BASE = '/api'
 
@@ -30,7 +33,9 @@ export class ApiError extends Error {
 async function request(path, options = {}) {
   let response
   try {
-    response = await fetch(`${API_BASE}${path}`, options)
+    // Added here, once, so no individual API function can forget it.
+    const headers = { ...options.headers, 'X-Device-Id': getDeviceId() }
+    response = await fetch(`${API_BASE}${path}`, { ...options, headers })
   } catch {
     // fetch only throws when there's no response at all, e.g. the backend isn't running.
     throw new ApiError("Can't reach the server. Is the backend running?", null)

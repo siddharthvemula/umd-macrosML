@@ -9,7 +9,7 @@ from PIL import Image
 
 from api.deps import get_scorer
 from api.main import MAX_PHOTO_BYTES, app
-from conftest import TODAY
+from conftest import DEVICE, TODAY
 from db.database import connect, photo_exists, save_menu, save_nutrition
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
@@ -119,7 +119,7 @@ def test_photo_is_saved_with_an_id(client, db_path, photo_dir, scorer):
     [saved_file] = photo_dir.iterdir()
     assert saved_file.read_bytes() == data
     conn = connect(db_path)
-    assert photo_exists(conn, photo_id)
+    assert photo_exists(conn, photo_id, device_id=DEVICE)
     conn.close()
 
 

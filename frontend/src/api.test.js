@@ -33,7 +33,20 @@ describe('api', () => {
     const fetchMock = fakeFetch(200, [{ id: 'south_campus', name: 'South Campus' }])
 
     expect(await getHalls()).toEqual([{ id: 'south_campus', name: 'South Campus' }])
-    expect(fetchMock).toHaveBeenCalledWith('/api/halls', {})
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/halls')
+  })
+
+  it('sends the same device ID header with every request', async () => {
+    const fetchMock = fakeFetch(200, [])
+
+    await getHalls()
+    await logMeal('111*1', 1)
+
+    const [first, second] = fetchMock.mock.calls.map(([, options]) => options.headers['X-Device-Id'])
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(second).toBe(first)
+    // Adding the device header must not drop logMeal's own JSON header.
+    expect(fetchMock.mock.calls[1][1].headers['Content-Type']).toBe('application/json')
   })
 
   it('getMenu adds the date only when one is given', async () => {
@@ -76,7 +89,8 @@ describe('api', () => {
     const [url, options] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/recognize')
     expect(options.method).toBe('POST')
-    expect(options.headers).toBeUndefined()
+    // No Content-Type: the browser must write the multipart one (with its boundary) itself.
+    expect(options.headers['Content-Type']).toBeUndefined()
     expect(options.body.get('photo').name).toBe('plate.jpg')
     expect(options.body.get('hall')).toBe('yahentamitsi')
     expect(options.body.get('meal')).toBe('Lunch')

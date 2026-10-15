@@ -6,6 +6,8 @@
 # Plate photos sent to the recognizer are recorded in `photos` (save_photo); a meal log
 # with a photo_id says "this dish was on that photo", which is our ML training label.
 # get_photo_labels gathers those labels for ml/export_training_data.py.
+# Meal logs and photos store the device_id that made them, and every read/delete of
+# them filters by it, so one student never sees or changes another's data.
 
 import json
 import sqlite3
@@ -70,7 +72,8 @@ CREATE TABLE IF NOT EXISTS meal_logs (
     carbs_g   REAL NOT NULL,
     fat_g     REAL NOT NULL,
     logged_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- UTC
-    photo_id  INTEGER  -- photos.id if logged from a plate photo, else NULL
+    photo_id  INTEGER,  -- photos.id if logged from a plate photo, else NULL
+    device_id TEXT      -- which phone/browser logged it (random ID, see api/deps.py)
 );
 
 -- One row per plate photo the recognizer saw. The image itself is a file on disk
@@ -82,7 +85,8 @@ CREATE TABLE IF NOT EXISTS photos (
     hall        TEXT NOT NULL,  -- display name, like menu_entries.hall
     meal        TEXT,           -- e.g. 'Lunch'; NULL if the whole day's menu was used
     filename    TEXT NOT NULL UNIQUE,  -- e.g. '3f2a...c1.jpg', inside the photo folder
-    uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP  -- UTC
+    uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- UTC
+    device_id   TEXT  -- which phone/browser uploaded it
 );
 """
 
@@ -131,6 +135,8 @@ class MealLog:
     logged_at: str
     # The plate photo this dish was logged from, or None if logged from the menu.
     photo_id: Optional[int] = None
+    # The device that logged it; None only for logs made before devices existed.
+    device_id: Optional[str] = None
 
 
 @dataclass
@@ -200,7 +206,11 @@ def create_tables(conn: sqlite3.Connection) -> None:
 # Columns added after a table first shipped: (table, column, SQL type). CREATE TABLE IF
 # NOT EXISTS skips a table that already exists, so an older database file would never
 # get these. This list is a tiny "migration" step that adds them.
-ADDED_COLUMNS = [("meal_logs", "photo_id", "INTEGER")]
+ADDED_COLUMNS = [
+    ("meal_logs", "photo_id", "INTEGER"),
+    ("meal_logs", "device_id", "TEXT"),
+    ("photos", "device_id", "TEXT"),
+]
 
 
 def _add_missing_columns(conn: sqlite3.Connection) -> None:
@@ -348,20 +358,22 @@ def _row_to_menu_row(row: sqlite3.Row) -> MenuRow:
 
 def log_meal(
     conn: sqlite3.Connection, day: date, recipe_id: str, servings: float,
-    photo_id: Optional[int] = None,
+    photo_id: Optional[int] = None, *, device_id: str,
 ) -> Optional[MealLog]:
     """Log that a student ate `servings` of a dish on `day`.
 
     Args:
         photo_id: The plate photo this dish was picked from (see save_photo), or None.
-            Check it exists first with photo_exists.
+            Check it belongs to this device first with photo_exists.
+        device_id: Which device logged it. Keyword-only (after the `*`), so a caller
+            can't forget it or mix it up with another string argument.
 
     Returns:
         The saved MealLog, or None (and nothing saved) if we have no nutrition for
         this dish, since we can't count macros we don't know.
 
     Example:
-        log_meal(conn, date(2026, 10, 12), "111*1", 1.5).calories  # -> 109.8 (per serving)
+        log_meal(conn, date(2026, 10, 12), "111*1", 1.5, device_id="d1").calories  # -> 109.8
     """
     label = get_nutrition(conn, recipe_id)
     if label is None:
@@ -370,52 +382,58 @@ def log_meal(
         cursor = conn.execute(
             """
             INSERT INTO meal_logs
-                (date, recipe_id, name, servings, calories, protein_g, carbs_g, fat_g, photo_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (date, recipe_id, name, servings, calories, protein_g, carbs_g, fat_g,
+                 photo_id, device_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (day.isoformat(), recipe_id, label.name, servings,
-             label.calories, label.protein_g, label.carbs_g, label.fat_g, photo_id),
+             label.calories, label.protein_g, label.carbs_g, label.fat_g, photo_id, device_id),
         )
     # Read the row back so the result includes the id and logged_at SQLite filled in.
     row = conn.execute("SELECT * FROM meal_logs WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return _row_to_meal_log(row)
 
 
-def get_meal_logs(conn: sqlite3.Connection, day: date) -> List[MealLog]:
-    """Get every dish logged on `day`, oldest first. An empty list if none.
+def get_meal_logs(conn: sqlite3.Connection, day: date, *, device_id: str) -> List[MealLog]:
+    """Get every dish one device logged on `day`, oldest first. An empty list if none.
 
     Example:
-        [log.name for log in get_meal_logs(conn, date(2026, 10, 12))]  # -> ["Banana", ...]
+        [log.name for log in get_meal_logs(conn, date(2026, 10, 12), device_id="d1")]
+        # -> ["Banana", ...]
     """
     rows = conn.execute(
-        "SELECT * FROM meal_logs WHERE date = ? ORDER BY id", (day.isoformat(),)
+        "SELECT * FROM meal_logs WHERE date = ? AND device_id = ? ORDER BY id",
+        (day.isoformat(), device_id),
     ).fetchall()
     return [_row_to_meal_log(row) for row in rows]
 
 
-def delete_meal_log(conn: sqlite3.Connection, log_id: int) -> bool:
-    """Delete one meal log.
+def delete_meal_log(conn: sqlite3.Connection, log_id: int, *, device_id: str) -> bool:
+    """Delete one of this device's meal logs.
 
     Returns:
-        True if it was deleted, False if no log has that id.
+        True if it was deleted, False if no log has that id *for this device*, so one
+        student can't delete another's log by guessing ids.
 
     Example:
-        delete_meal_log(conn, 1)  # -> True, then False if called again
+        delete_meal_log(conn, 1, device_id="d1")  # -> True, then False if called again
     """
     with conn:
-        cursor = conn.execute("DELETE FROM meal_logs WHERE id = ?", (log_id,))
+        cursor = conn.execute(
+            "DELETE FROM meal_logs WHERE id = ? AND device_id = ?", (log_id, device_id)
+        )
     return cursor.rowcount > 0
 
 
-def get_daily_totals(conn: sqlite3.Connection, day: date) -> DailyTotals:
-    """Add up a day's macros, multiplying each dish by its servings.
+def get_daily_totals(conn: sqlite3.Connection, day: date, *, device_id: str) -> DailyTotals:
+    """Add up one device's macros for a day, multiplying each dish by its servings.
 
     Returns:
         The totals. A day with nothing logged gives all zeros.
 
     Example:
         # 2 bananas (109.8 cal each) + 1 burger (240.8 cal)
-        get_daily_totals(conn, date(2026, 10, 12)).calories  # -> 460.4
+        get_daily_totals(conn, date(2026, 10, 12), device_id="d1").calories  # -> 460.4
     """
     # SUM over zero rows is NULL in SQL, so COALESCE turns that into 0.
     row = conn.execute(
@@ -425,15 +443,16 @@ def get_daily_totals(conn: sqlite3.Connection, day: date) -> DailyTotals:
                COALESCE(SUM(carbs_g * servings), 0)   AS carbs_g,
                COALESCE(SUM(fat_g * servings), 0)     AS fat_g,
                COUNT(*)                               AS meal_count
-        FROM meal_logs WHERE date = ?
+        FROM meal_logs WHERE date = ? AND device_id = ?
         """,
-        (day.isoformat(),),
+        (day.isoformat(), device_id),
     ).fetchone()
     return DailyTotals(**dict(row))
 
 
 def save_photo(
     conn: sqlite3.Connection, day: date, hall: str, meal: Optional[str], filename: str,
+    *, device_id: str,
 ) -> int:
     """Record a plate photo that was saved to disk as `filename`.
 
@@ -442,29 +461,48 @@ def save_photo(
         hall: Hall display name, e.g. "Yahentamitsi".
         meal: e.g. "Lunch", or None if the whole day's menu was used.
         filename: The file's name inside the photo folder.
+        device_id: Which device uploaded it (for the daily cap and deletion requests).
 
     Returns:
         The new photo's id, which meal logs use as photo_id.
 
     Example:
-        save_photo(conn, date(2026, 10, 15), "Yahentamitsi", "Lunch", "3f2a.jpg")  # -> 1
+        save_photo(conn, date(2026, 10, 15), "Yahentamitsi", "Lunch", "3f2a.jpg", device_id="d1")
+        # -> 1
     """
     with conn:
         cursor = conn.execute(
-            "INSERT INTO photos (date, hall, meal, filename) VALUES (?, ?, ?, ?)",
-            (day.isoformat(), hall, meal, filename),
+            "INSERT INTO photos (date, hall, meal, filename, device_id) VALUES (?, ?, ?, ?, ?)",
+            (day.isoformat(), hall, meal, filename, device_id),
         )
     return cursor.lastrowid
 
 
-def photo_exists(conn: sqlite3.Connection, photo_id: int) -> bool:
-    """Check whether a photo with this id was recorded.
+def photo_exists(conn: sqlite3.Connection, photo_id: int, *, device_id: str) -> bool:
+    """Check whether this device uploaded a photo with this id.
+
+    Another device's photo counts as missing, so nobody can attach labels to it.
 
     Example:
-        photo_exists(conn, 1)  # -> True after the first save_photo
+        photo_exists(conn, 1, device_id="d1")  # -> True after d1's first save_photo
     """
-    row = conn.execute("SELECT 1 FROM photos WHERE id = ?", (photo_id,)).fetchone()
+    row = conn.execute(
+        "SELECT 1 FROM photos WHERE id = ? AND device_id = ?", (photo_id, device_id)
+    ).fetchone()
     return row is not None
+
+
+def count_photos(conn: sqlite3.Connection, day: date, *, device_id: str) -> int:
+    """Count the photos one device saved on a campus day (for the daily upload cap).
+
+    Example:
+        count_photos(conn, date(2026, 10, 15), device_id="d1")  # -> 3
+    """
+    row = conn.execute(
+        "SELECT COUNT(*) FROM photos WHERE date = ? AND device_id = ?",
+        (day.isoformat(), device_id),
+    ).fetchone()
+    return row[0]
 
 
 def get_photo_labels(conn: sqlite3.Connection) -> List[PhotoLabels]:

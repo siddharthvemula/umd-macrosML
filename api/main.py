@@ -1,7 +1,8 @@
 # The FastAPI backend: serves the menus and nutrition the scraper saved to the
 # database, lets a student log meals and see their daily totals, and guesses which
 # dishes are on a plate photo (POST /recognize), saving each photo so the dishes logged
-# from it become ML training data. Run it locally with
+# from it become ML training data. Meal logs and photos belong to a device (the
+# X-Device-Id header, see api/deps.py), so each student sees only their own. Run it locally with
 #   .venv/bin/uvicorn api.main:app --reload
 # then open http://127.0.0.1:8000/docs to try the endpoints in the browser.
 
@@ -11,13 +12,13 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 
-from api.deps import get_db, get_photo_dir, get_scorer, get_today
+from api.deps import get_db, get_device_id, get_photo_dir, get_scorer, get_today
 from api.schemas import (
     DailySummaryOut, GuessOut, HallOut, MealLogIn, MealLogOut, MenuItemOut, MenuOut,
     NutritionOut, RecognizeOut,
 )
 from db.database import (
-    MealLog, delete_meal_log, get_daily_totals, get_meal_logs, get_menu, get_nutrition, log_meal,
+    MealLog, count_photos, delete_meal_log, get_daily_totals, get_meal_logs, get_menu, get_nutrition, log_meal,
     photo_exists, save_photo,
 )
 from ml.photo_store import save_photo_file
@@ -65,6 +66,9 @@ def list_halls() -> list[HallOut]:
 
 # Phone photos are usually 2-5 MB; anything far bigger is probably not a plate photo.
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
+# A few meals a day plus retakes is well under this. The cap stops one device (or a
+# script) from filling the server's disk with photos.
+MAX_PHOTOS_PER_DAY = 20
 
 
 def get_hall_name(hall: str) -> str:
@@ -132,6 +136,7 @@ def recognize_photo(
     today: date = Depends(get_today),
     scorer: ImageTextScorer = Depends(get_scorer),
     photo_dir: Path = Depends(get_photo_dir),
+    device_id: str = Depends(get_device_id),
 ) -> RecognizeOut:
     """Guess which of today's dishes are on a plate photo.
 
@@ -146,13 +151,20 @@ def recognize_photo(
         logged dish to it as a training label.
         guesses is [] (and photo_id null, nothing saved) if no menu is stored for today
         (or for that meal).
-        400 for a file that isn't an image, 413 if it's over 10 MB, 404 for an unknown hall.
+        400 for a file that isn't an image (or no X-Device-Id), 413 if it's over 10 MB,
+        404 for an unknown hall, 429 if this device already saved 20 photos today.
 
     Example:
         POST /recognize  photo=plate.jpg, hall=yahentamitsi, meal=Lunch
         # -> {"guesses": [{"recipe_id": "...", "name": "Fried Chicken Thigh", "score": 0.31, ...}]}
     """
     hall_name = get_hall_name(hall)
+    # Checked before running CLIP, so a device over the cap costs the server almost nothing.
+    if count_photos(conn, today, device_id=device_id) >= MAX_PHOTOS_PER_DAY:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily photo limit reached ({MAX_PHOTOS_PER_DAY}). Log from the menu instead.",
+        )
 
     data = photo.file.read()
     if len(data) > MAX_PHOTO_BYTES:
@@ -180,7 +192,7 @@ def recognize_photo(
     photo_id = None
     if guesses:
         filename = save_photo_file(photo_dir, data)
-        photo_id = save_photo(conn, today, hall_name, meal, filename)
+        photo_id = save_photo(conn, today, hall_name, meal, filename, device_id=device_id)
 
     return RecognizeOut(
         hall=hall, date=today, meal=meal, photo_id=photo_id,
@@ -226,6 +238,7 @@ def create_meal_log(
     meal: MealLogIn,
     conn: sqlite3.Connection = Depends(get_db),
     today: date = Depends(get_today),
+    device_id: str = Depends(get_device_id),
 ) -> MealLogOut:
     """Log that the student ate some servings of a dish.
 
@@ -234,16 +247,20 @@ def create_meal_log(
         (date and photo_id optional; photo_id comes from POST /recognize)
 
     Returns:
-        201 with the new log. 404 if we have no nutrition for the dish, or no such photo.
+        201 with the new log. 404 if we have no nutrition for the dish, or this device
+        has no such photo.
         422 (automatic) if servings isn't in (0, 5].
 
     Example:
         POST /meals {"recipe_id": "111*1", "servings": 2}  # -> {"id": 1, "calories": 219.6, ...}
     """
     # Checked here so a typo'd photo_id fails loudly instead of saving a broken label.
-    if meal.photo_id is not None and not photo_exists(conn, meal.photo_id):
+    if meal.photo_id is not None and not photo_exists(conn, meal.photo_id, device_id=device_id):
         raise HTTPException(status_code=404, detail=f"No photo with id {meal.photo_id}.")
-    log = log_meal(conn, meal.log_date or today, meal.recipe_id, meal.servings, meal.photo_id)
+    log = log_meal(
+        conn, meal.log_date or today, meal.recipe_id, meal.servings, meal.photo_id,
+        device_id=device_id,
+    )
     if log is None:
         raise HTTPException(
             status_code=404, detail=f"Can't log '{meal.recipe_id}': no nutrition stored for it."
@@ -256,23 +273,29 @@ def list_meal_logs(
     log_date: date | None = Query(None, alias="date"),
     conn: sqlite3.Connection = Depends(get_db),
     today: date = Depends(get_today),
+    device_id: str = Depends(get_device_id),
 ) -> list[MealLogOut]:
-    """List the dishes logged on a day (default today), oldest first.
+    """List the dishes this device logged on a day (default today), oldest first.
 
     Example:
         GET /meals?date=2026-10-12  # -> [{"id": 1, "name": "Banana", ...}, ...]
     """
-    return [to_meal_log_out(log) for log in get_meal_logs(conn, log_date or today)]
+    return [to_meal_log_out(log) for log in get_meal_logs(conn, log_date or today, device_id=device_id)]
 
 
 @app.delete("/meals/{log_id}", status_code=204)
-def remove_meal_log(log_id: int, conn: sqlite3.Connection = Depends(get_db)) -> None:
-    """Delete one logged dish. 204 (empty response) on success, 404 if there's no such log.
+def remove_meal_log(
+    log_id: int,
+    conn: sqlite3.Connection = Depends(get_db),
+    device_id: str = Depends(get_device_id),
+) -> None:
+    """Delete one logged dish. 204 (empty response) on success, 404 if this device has
+    no such log (another student's log counts as missing).
 
     Example:
         DELETE /meals/1
     """
-    if not delete_meal_log(conn, log_id):
+    if not delete_meal_log(conn, log_id, device_id=device_id):
         raise HTTPException(status_code=404, detail=f"No meal log with id {log_id}.")
 
 
@@ -281,14 +304,15 @@ def read_daily_summary(
     log_date: date | None = Query(None, alias="date"),
     conn: sqlite3.Connection = Depends(get_db),
     today: date = Depends(get_today),
+    device_id: str = Depends(get_device_id),
 ) -> DailySummaryOut:
-    """Get a day's macro totals (default today). A day with nothing logged is all zeros.
+    """Get this device's macro totals for a day (default today). A day with nothing logged is all zeros.
 
     Example:
         GET /summary  # -> {"date": "2026-10-12", "calories": 460.4, ..., "meal_count": 2}
     """
     day = log_date or today
-    totals = get_daily_totals(conn, day)
+    totals = get_daily_totals(conn, day, device_id=device_id)
     return DailySummaryOut(
         date=day,
         calories=round_macro(totals.calories),

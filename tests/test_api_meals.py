@@ -2,7 +2,7 @@
 # GET /summary. The `client` and `db_path` fixtures come from conftest.py
 # (a temp database per test and a fixed "today" of 2026-10-12).
 
-from conftest import TODAY
+from conftest import DEVICE, TODAY
 from db.database import connect, save_nutrition, save_photo
 from scraper.label_parser import NutritionLabel
 
@@ -93,7 +93,7 @@ def test_summary_for_empty_day_is_zeros(client):
 def test_log_from_a_photo_keeps_photo_id(client, db_path):
     seed_banana(db_path)
     conn = connect(db_path)
-    photo_id = save_photo(conn, TODAY, "Yahentamitsi", "Lunch", "abc.jpg")
+    photo_id = save_photo(conn, TODAY, "Yahentamitsi", "Lunch", "abc.jpg", device_id=DEVICE)
     conn.close()
 
     response = client.post("/meals", json={"recipe_id": BANANA_ID, "servings": 1, "photo_id": photo_id})

@@ -1,14 +1,18 @@
 # Shared "dependencies" that FastAPI hands to endpoints: a database connection,
-# today's date, the CLIP photo scorer, and the folder for saved plate photos. Endpoints
+# today's date, the CLIP photo scorer, the folder for saved plate photos, and which
+# device (phone/browser) is asking, so each student only sees their own meals. Endpoints
 # ask for them as parameters instead of creating them, so tests can swap in a test
 # database, a fixed date, a fake scorer, or a temp folder (app.dependency_overrides).
 
 import sqlite3
+import uuid
 from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterator
 from zoneinfo import ZoneInfo
+
+from fastapi import Header, HTTPException
 
 from db.database import DEFAULT_DB_PATH, connect
 from ml.photo_store import DEFAULT_PHOTO_DIR
@@ -68,3 +72,33 @@ def get_photo_dir() -> Path:
         get_photo_dir()  # -> Path(".../ml/training_photos")
     """
     return DEFAULT_PHOTO_DIR
+
+
+def get_device_id(x_device_id: str | None = Header(None)) -> str:
+    """Read which device is making the request from its X-Device-Id header.
+
+    The browser makes a random ID (a UUID) the first time the app opens, keeps it, and
+    sends it with every request (frontend/src/device.js). There are no passwords: the ID
+    only keeps one student's meals apart from another's.
+
+    Args:
+        x_device_id: FastAPI fills this from the "X-Device-Id" header (it turns the
+            underscores into dashes for us).
+
+    Returns:
+        The ID in standard lowercase UUID form.
+
+    Raises:
+        HTTPException 400: if the header is missing or isn't a UUID.
+
+    Example:
+        get_device_id("3F2A9C1E-...")  # -> "3f2a9c1e-..."
+    """
+    try:
+        # Parsing rejects junk (and very long strings) before it reaches the database,
+        # and str() gives one spelling, so "ABC..." and "abc..." are the same device.
+        return str(uuid.UUID(x_device_id or ""))
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400, detail="Missing or invalid X-Device-Id header. Try reloading the app."
+        ) from error

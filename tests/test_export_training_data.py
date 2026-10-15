@@ -6,6 +6,7 @@ from datetime import date
 
 import pytest
 
+from conftest import DEVICE
 from db.database import connect, get_photo_labels, log_meal, save_nutrition, save_photo
 from ml.evaluate import read_labels
 from ml.export_training_data import export_training_data
@@ -34,25 +35,25 @@ def conn():
 
 
 def test_photo_labels_group_dishes_per_photo_without_repeats(conn):
-    lunch = save_photo(conn, DAY, "Yahentamitsi", "Lunch", "a.jpg")
-    log_meal(conn, DAY, "1*1", 1, photo_id=lunch)
-    log_meal(conn, DAY, "2*1", 1, photo_id=lunch)
-    log_meal(conn, DAY, "1*1", 0.5, photo_id=lunch)  # rice logged twice: one label
+    lunch = save_photo(conn, DAY, "Yahentamitsi", "Lunch", "a.jpg", device_id=DEVICE)
+    log_meal(conn, DAY, "1*1", 1, photo_id=lunch, device_id=DEVICE)
+    log_meal(conn, DAY, "2*1", 1, photo_id=lunch, device_id=DEVICE)
+    log_meal(conn, DAY, "1*1", 0.5, photo_id=lunch, device_id=DEVICE)  # rice logged twice: one label
 
     [labels] = get_photo_labels(conn)
     assert (labels.filename, labels.meal, labels.dishes) == ("a.jpg", "Lunch", ["Spanish Rice", "Salsa, Roja"])
 
 
 def test_unlogged_photos_and_menu_logs_are_left_out(conn):
-    save_photo(conn, DAY, "Yahentamitsi", "Lunch", "nobody-logged-this.jpg")
-    log_meal(conn, DAY, "1*1", 1)  # from the menu, no photo
+    save_photo(conn, DAY, "Yahentamitsi", "Lunch", "nobody-logged-this.jpg", device_id=DEVICE)
+    log_meal(conn, DAY, "1*1", 1, device_id=DEVICE)  # from the menu, no photo
 
     assert get_photo_labels(conn) == []
 
 
 def test_export_round_trips_through_evaluates_reader(conn, tmp_path):
-    photo = save_photo(conn, DAY, "Yahentamitsi", None, "a.jpg")  # meal "Any"
-    log_meal(conn, DAY, "2*1", 1, photo_id=photo)
+    photo = save_photo(conn, DAY, "Yahentamitsi", None, "a.jpg", device_id=DEVICE)  # meal "Any"
+    log_meal(conn, DAY, "2*1", 1, photo_id=photo, device_id=DEVICE)
     path = tmp_path / "labels.csv"
 
     assert export_training_data(conn, path) == 1
