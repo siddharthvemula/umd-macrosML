@@ -1,0 +1,25 @@
+# Files Docker should never copy into the build. Keeps builds fast, and keeps secrets,
+# the database and students' photos out of the image (anyone with the image could read them).
+# tests/test_dockerignore.py checks the important lines are still here.
+
+# Secrets
+.env
+
+# Data: lives in the mounted /data folder, never inside the image
+*.db
+data/
+docker-data/
+ml/training_photos/
+ml/eval_photos/
+
+# Rebuilt inside the image
+.venv/
+**/__pycache__/
+**/node_modules/
+frontend/dist/
+
+# Not needed to run the app
+.git/
+.pytest_cache/
+tests/
+**/.DS_Store

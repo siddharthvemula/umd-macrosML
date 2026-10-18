@@ -23,3 +23,6 @@ ml/eval_photos/*
 
 # Plate photos saved by POST /recognize as training data: personal and big, keep local
 ml/training_photos/
+
+# Local Docker test data (copy of the DB + photos mounted into the container)
+docker-data/
