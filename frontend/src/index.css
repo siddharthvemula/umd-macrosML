@@ -274,3 +274,92 @@ h1 {
 .app-footer summary {
   cursor: pointer;
 }
+
+/* Phones (~390px wide). Desktop keeps the side-by-side rows above; here each dish stacks
+   (name, then macros, then buttons) so long names aren't squeezed into a narrow column, and
+   everything tappable is at least 44px tall, Apple's minimum comfortable touch size. */
+@media (max-width: 480px) {
+  .app {
+    padding: 12px;
+  }
+
+  h1 {
+    margin: 8px 0 16px;
+    font-size: 1.6rem;
+  }
+
+  /* The cards sit inside the page padding, so trim theirs to give content more width. */
+  .dashboard,
+  .photo-log,
+  .photo-notice {
+    padding: 12px;
+  }
+
+  .dish {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .dish-macros {
+    text-align: left;
+  }
+
+  /* Four equal buttons across the full row, so they line up from dish to dish. */
+  .portions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .portions button,
+  .logged-meal button,
+  .photo-notice button {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  .logged-meal button {
+    padding: 0 12px;
+  }
+
+  .photo-notice button {
+    width: 100%;
+  }
+
+  /* Label above a full-width control, instead of a cramped label-and-control line. */
+  .hall-picker,
+  .photo-controls label,
+  .menu-search label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .hall-picker select,
+  .photo-controls select,
+  .menu-search input {
+    margin-left: 0;
+    width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+
+  .photo-controls input[type='file'] {
+    max-width: 100%;
+  }
+
+  /* The browser's own "Choose File" button inside the file input: the main action on this screen. */
+  .photo-controls input[type='file']::file-selector-button {
+    min-height: 44px;
+    margin-right: 8px;
+    padding: 0 16px;
+    font-size: 1rem;
+  }
+
+  .link-button {
+    min-height: 44px;
+  }
+}
