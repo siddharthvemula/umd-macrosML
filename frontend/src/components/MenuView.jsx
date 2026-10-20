@@ -7,6 +7,7 @@ import { getMenu } from '../api.js'
 import { useMealLogger } from '../useMealLogger.js'
 import LogBanner from './LogBanner.jsx'
 import MenuList from './MenuList.jsx'
+import { RowsSkeleton } from './Skeleton.jsx'
 
 /**
  * Loads today's menu for one hall and logs dishes from it.
@@ -40,7 +41,12 @@ export default function MenuView({ hallId, onLogged }) {
     <section className="menu-view card">
       <h2 className="card-title">Today's menu</h2>
       {error && <p className="notice notice--error">{error}</p>}
-      {!error && !menu && <p className="notice">Loading menu…</p>}
+      {!error && !menu && (
+        <div aria-busy="true">
+          <p className="visually-hidden">Loading menu…</p>
+          <RowsSkeleton count={6} />
+        </div>
+      )}
       <LogBanner result={logResult} />
       {menu && <MenuList items={menu.items} loggingId={loggingId} onLog={handleLog} />}
     </section>

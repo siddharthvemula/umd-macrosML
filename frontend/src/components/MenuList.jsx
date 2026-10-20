@@ -1,45 +1,97 @@
-// Shows one day's menu, grouped by meal, with portion buttons on each dish. Display only:
-// it gets the dishes and an onLog callback as props and never calls the API itself.
+// Shows one day's menu: a search box, then each meal (Breakfast, Lunch, ...) split into
+// collapsible station sections (Grill, Salad Bar, ...), with portion buttons on each dish.
+// It never calls the API: it gets the dishes and an onLog callback as props. The search text
+// is its own state, since only this screen uses it.
 
-import { groupByMeal } from '../menu.js'
+import { useId, useState } from 'react'
+import { filterMenu, groupByMeal, groupByStation } from '../menu.js'
 import PortionButtons from './PortionButtons.jsx'
 
 /**
- * A hall's menu as sections (Breakfast, Lunch, ...) of dish rows.
+ * A hall's menu: search box, meal headings, collapsible stations, dish rows.
  *
  * @param {{items: object[], loggingId: string|null, onLog: (item: object, servings: number) => void}} props
  *   items: dishes from getMenu(). loggingId: recipe_id currently being logged (its buttons are
  *   disabled). onLog: called when a portion button is clicked.
  * @returns {JSX.Element}
  * @example <MenuList items={menu.items} loggingId={null} onLog={handleLog} />
+ *   // typing "rice" leaves only the rice dishes, with their stations opened
  */
 export default function MenuList({ items, loggingId, onLog }) {
+  const [query, setQuery] = useState('')
+  // A unique id ties the hidden label to the input, even if two menus were ever on screen.
+  const searchId = useId()
+
   if (items.length === 0) {
-    return <p className="notice">No menu posted for today yet.</p>
+    return (
+      <div className="empty-state">
+        <span className="empty-state-icon" aria-hidden="true">📋</span>
+        <p className="empty-state-title">No menu posted for today yet.</p>
+        <p className="empty-state-hint">UMD usually posts menus a few days ahead. Try the other dining hall.</p>
+      </div>
+    )
   }
 
-  return groupByMeal(items).map(({ meal, items: mealItems }) => (
-    <section key={meal} className="meal">
-      <h3>{meal}</h3>
-      <ul className="dish-list">
-        {mealItems.map((item) => (
-          <DishRow
-            key={item.recipe_id}
-            item={item}
-            isLogging={item.recipe_id === loggingId}
-            onLog={(servings) => onLog(item, servings)}
-          />
-        ))}
-      </ul>
-    </section>
-  ))
+  const isSearching = query.trim() !== ''
+  const matches = filterMenu(items, query)
+
+  return (
+    <>
+      <label className="visually-hidden" htmlFor={searchId}>
+        Search dishes
+      </label>
+      <input
+        id={searchId}
+        className="menu-filter"
+        type="search"
+        value={query}
+        placeholder="Search dishes or stations"
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      {/* role="status" makes screen readers announce the new count as the student types. */}
+      {isSearching && (
+        <p className="menu-filter-count" role="status">
+          {matches.length === 0
+            ? `No dishes match "${query.trim()}".`
+            : `${matches.length} ${matches.length === 1 ? 'dish matches' : 'dishes match'}`}
+        </p>
+      )}
+
+      {groupByMeal(matches).map(({ meal, items: mealItems }) => (
+        <section key={meal} className="meal">
+          <h3>{meal}</h3>
+          {groupByStation(mealItems).map(({ station, items: stationItems }) => (
+            // <details> is the browser's own collapsible box (no state needed). Stations start
+            // closed so the menu fits on a phone; while searching, every station with a match
+            // opens. The key includes isSearching so clearing the search closes them again.
+            <details key={`${station}-${isSearching}`} className="station" open={isSearching}>
+              <summary>
+                <span className="station-name">{station}</span>
+                <span className="station-count">{stationItems.length}</span>
+              </summary>
+              <ul className="dish-list">
+                {stationItems.map((item) => (
+                  <DishRow
+                    key={item.recipe_id}
+                    item={item}
+                    isLogging={item.recipe_id === loggingId}
+                    onLog={(servings) => onLog(item, servings)}
+                  />
+                ))}
+              </ul>
+            </details>
+          ))}
+        </section>
+      ))}
+    </>
+  )
 }
 
 /**
- * One dish: name, station, the four macros per serving, and portion buttons.
+ * One dish: the name first, the four macros per serving in smaller text, then portion buttons.
  * Dishes with no nutrition get no buttons, since the API can't log macros it doesn't know.
  *
- * @param {{item: {name: string, station: string, nutrition: object|null}, isLogging: boolean,
+ * @param {{item: {name: string, nutrition: object|null}, isLogging: boolean,
  *   onLog: (servings: number) => void}} props
  * @returns {JSX.Element}
  */
@@ -47,19 +99,17 @@ function DishRow({ item, isLogging, onLog }) {
   const { nutrition } = item
   return (
     <li className={nutrition ? 'dish' : 'dish dish--no-data'}>
-      <div>
+      <div className="dish-info">
         <span className="dish-name">{item.name}</span>
-        <span className="dish-station">{item.station}</span>
-      </div>
-      <div className="dish-macros">
-        <span>
+        <span className="dish-meta">
           {nutrition
             ? `${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein · ` +
               `${nutrition.carbs_g}g carbs · ${nutrition.fat_g}g fat`
             : 'No nutrition info'}
         </span>
-        {nutrition && <PortionButtons dishName={item.name} disabled={isLogging} onLog={onLog} />}
+        {nutrition?.serving_size && <span className="dish-serving">{`1 serving = ${nutrition.serving_size}`}</span>}
       </div>
+      {nutrition && <PortionButtons dishName={item.name} disabled={isLogging} onLog={onLog} />}
     </li>
   )
 }

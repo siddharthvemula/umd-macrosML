@@ -293,6 +293,100 @@ button:disabled {
   font-size: var(--text-sm);
 }
 
+/* Menu dish rows: name first, then macros and serving size in smaller gray text. */
+.dish-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dish-meta,
+.dish-serving {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.dish-serving {
+  font-size: 0.78rem;
+}
+
+/* Menu search box: full width at the top of the menu card. "input." is needed to beat the
+   general input[type='search'] rule above, which is more specific than a class alone. */
+input.menu-filter {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: var(--space-2);
+  padding-left: 40px;
+  /* A magnifying glass drawn inline as SVG, so it needs no icon file or library. */
+  background: var(--surface-2)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%238a919c' stroke-width='2' stroke-linecap='round' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4-4'/%3E%3C/svg%3E")
+    no-repeat 12px center;
+}
+
+.menu-filter-count {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+/* One collapsible station inside a meal. */
+.station {
+  border-bottom: 1px solid var(--border);
+}
+
+.station summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  cursor: pointer;
+  /* Hide the browser's own triangle; the chevron below replaces it. */
+  list-style: none;
+}
+
+.station summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A chevron that points right when closed and down when open. */
+.station summary::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  margin: 0 var(--space-1);
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.station[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.station-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.station-count {
+  min-width: 28px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+/* Dish rows sit indented under their open station. */
+.station .dish-list {
+  padding: 0 0 var(--space-2) 22px;
+}
+
 /* Dishes UMD published no nutrition for: still listed, but faded. */
 .dish--no-data {
   opacity: 0.55;
@@ -692,6 +786,11 @@ button:disabled {
   .macro-ring-track,
   .macro-ring-fill {
     stroke-width: 6;
+  }
+
+  /* Less indent under a station on a narrow screen. */
+  .station .dish-list {
+    padding-left: var(--space-2);
   }
 
   .goals-fields {

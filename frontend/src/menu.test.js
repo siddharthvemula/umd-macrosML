@@ -1,7 +1,7 @@
-// Tests for the menu grouping helper in menu.js.
+// Tests for the menu grouping, filtering and search helpers in menu.js.
 
 import { describe, expect, it } from 'vitest'
-import { groupByMeal, searchMenu } from './menu.js'
+import { filterMenu, groupByMeal, groupByStation, searchMenu } from './menu.js'
 
 const dish = (name, meal) => ({ name, meal })
 
@@ -51,5 +51,43 @@ describe('searchMenu', () => {
   it('returns nothing for an empty query and stops at the limit', () => {
     expect(searchMenu(MENU, '   ')).toEqual([])
     expect(searchMenu(MENU, 'rice', { limit: 2 })).toHaveLength(2)
+  })
+})
+
+describe('groupByStation', () => {
+  const at = (name, station) => ({ name, station })
+
+  it('groups dishes by station, stations in the order first seen', () => {
+    const groups = groupByStation([at('Burger', 'Grill'), at('Kale', 'Salad'), at('Fries', 'Grill')])
+    expect(groups.map((g) => g.station)).toEqual(['Grill', 'Salad'])
+    expect(groups[0].items.map((d) => d.name)).toEqual(['Burger', 'Fries'])
+  })
+
+  it('returns no groups for no dishes', () => {
+    expect(groupByStation([])).toEqual([])
+  })
+})
+
+describe('filterMenu', () => {
+  const items = [
+    { name: 'Spanish Rice', station: 'Latin' },
+    { name: 'Cheeseburger', station: 'Grill' },
+    { name: 'Grilled Chicken', station: 'Entrees' },
+  ]
+
+  it('returns every dish when the search box is empty or just spaces', () => {
+    expect(filterMenu(items, '  ')).toBe(items)
+  })
+
+  it('matches the name anywhere, ignoring case', () => {
+    expect(filterMenu(items, 'RICE').map((d) => d.name)).toEqual(['Spanish Rice'])
+  })
+
+  it('also matches the station name', () => {
+    expect(filterMenu(items, 'grill').map((d) => d.name)).toEqual(['Cheeseburger', 'Grilled Chicken'])
+  })
+
+  it('returns an empty list when nothing matches', () => {
+    expect(filterMenu(items, 'sushi')).toEqual([])
   })
 })

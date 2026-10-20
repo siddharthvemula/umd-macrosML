@@ -36,6 +36,46 @@ function mealRank(meal) {
 }
 
 /**
+ * Groups one meal's dishes by station (Grill, Salad Bar, ...), for the menu's collapsible
+ * sections. Stations keep the order the API listed them in, which is UMD's own order.
+ *
+ * @param {{station: string}[]} items - Dishes from one meal.
+ * @returns {{station: string, items: object[]}[]} One group per station; dishes keep their order.
+ * @example
+ *   groupByStation([{ name: 'Burger', station: 'Grill' }, { name: 'Kale', station: 'Salad' }, { name: 'Fries', station: 'Grill' }])
+ *   // -> [{ station: 'Grill', items: [Burger, Fries] }, { station: 'Salad', items: [Kale] }]
+ */
+export function groupByStation(items) {
+  // A Map remembers insertion order, so stations come out in the order first seen.
+  const groups = new Map()
+  for (const item of items) {
+    if (!groups.has(item.station)) groups.set(item.station, [])
+    groups.get(item.station).push(item)
+  }
+  return [...groups.entries()].map(([station, stationItems]) => ({ station, items: stationItems }))
+}
+
+/**
+ * Filters the menu screen's dishes by the search box: keeps dishes whose name or station
+ * contains the text, ignoring case. Searching "grill" finds everything at the Grill.
+ *
+ * Unlike searchMenu (the photo screen's correction search), it keeps dishes without
+ * nutrition and has no limit: it only narrows the full menu list.
+ *
+ * @param {{name: string, station: string}[]} items - Dishes from getMenu().
+ * @param {string} query - What the user typed.
+ * @returns {object[]} Matching dishes in menu order; all dishes for an empty query.
+ * @example filterMenu(menu.items, 'RICE')  // -> [Spanish Rice, Sticky Rice, ...]
+ */
+export function filterMenu(items, query) {
+  const text = query.trim().toLowerCase()
+  if (!text) return items
+  return items.filter(
+    (item) => item.name.toLowerCase().includes(text) || item.station.toLowerCase().includes(text),
+  )
+}
+
+/**
  * Finds dishes on a menu whose name contains the search text, for correcting the
  * photo recognizer ("not listed? search today's menu").
  *
