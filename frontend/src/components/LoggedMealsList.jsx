@@ -13,7 +13,13 @@
  */
 export default function LoggedMealsList({ meals, deletingId, onDelete }) {
   if (meals.length === 0) {
-    return <p className="notice">Nothing logged yet today.</p>
+    return (
+      <div className="empty-state">
+        <span className="empty-state-icon" aria-hidden="true">🍽️</span>
+        <p className="empty-state-title">Nothing logged yet today.</p>
+        <p className="empty-state-hint">Snap a photo of your plate, or tap a portion on today's menu.</p>
+      </div>
+    )
   }
 
   return (

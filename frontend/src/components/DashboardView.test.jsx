@@ -1,4 +1,4 @@
-// Tests for the "Today" dashboard (DashboardView + MacroTotals + LoggedMealsList).
+// Tests for the "Today" dashboard (DashboardView + MacroTotals/MacroRing + GoalsForm + LoggedMealsList).
 // api.js is faked, so we control what "the server" answers and check what we sent it.
 
 import { render, screen } from '@testing-library/react'
@@ -44,6 +44,8 @@ function serverHas(logs) {
 describe('DashboardView', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    // Goals live in localStorage, so start every test from the defaults.
+    window.localStorage.clear()
   })
 
   it("shows today's totals, rounded, and each logged dish", async () => {
@@ -127,5 +129,60 @@ describe('DashboardView', () => {
 
     expect(await screen.findByText("Couldn't delete Banana: Meal log 1 not found.")).toBeInTheDocument()
     expect(screen.getByText('Banana')).toBeInTheDocument()
+  })
+
+  it('fills each ring toward its default goal and says how much is left', async () => {
+    serverHas([BANANA_LOG, EGGS_LOG])
+    render(<DashboardView refreshKey={0} />)
+
+    const calories = await screen.findByRole('progressbar', { name: 'Calories' })
+    expect(calories).toHaveAttribute('aria-valuetext', '400 of 2000')
+    expect(screen.getByText('1600 left')).toBeInTheDocument()
+    expect(screen.getByText('135g left')).toBeInTheDocument() // 150g protein goal - 15g
+  })
+
+  it('says how far over a goal the day is', async () => {
+    serverHas([{ ...BANANA_LOG, fat_g: 80 }])
+    render(<DashboardView refreshKey={0} />)
+
+    expect(await screen.findByText('⚠ 15g over')).toBeInTheDocument() // 80g of a 65g goal
+  })
+
+  it('saves edited goals, uses them in the rings, and remembers them', async () => {
+    serverHas([BANANA_LOG])
+    const { unmount } = render(<DashboardView refreshKey={0} />)
+    await screen.findByText('Banana')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit goals' }))
+    const caloriesBox = screen.getByRole('spinbutton', { name: 'Calories' })
+    await userEvent.clear(caloriesBox)
+    await userEvent.type(caloriesBox, '2500')
+    await userEvent.click(screen.getByRole('button', { name: 'Save goals' }))
+
+    expect(screen.getByRole('progressbar', { name: 'Calories' })).toHaveAttribute('aria-valuetext', '220 of 2500')
+    unmount()
+    render(<DashboardView refreshKey={0} />)
+    expect(await screen.findByText('/ 2500')).toBeInTheDocument()
+  })
+
+  it('keeps the old goal when a box is left empty', async () => {
+    serverHas([])
+    render(<DashboardView refreshKey={0} />)
+    await screen.findByText('Nothing logged yet today.')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit goals' }))
+    await userEvent.clear(screen.getByRole('spinbutton', { name: 'Protein (g)' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save goals' }))
+
+    expect(screen.getByText('/ 150g')).toBeInTheDocument()
+  })
+
+  it('shows loading placeholders until the day arrives', async () => {
+    serverHas([BANANA_LOG])
+    render(<DashboardView refreshKey={0} />)
+
+    expect(screen.getByText("Loading today's totals…")).toBeInTheDocument()
+    await screen.findByText('Banana')
+    expect(screen.queryByText("Loading today's totals…")).not.toBeInTheDocument()
   })
 })
