@@ -1,7 +1,6 @@
 # CLAUDE.md — UMD Dining Macro Tracker
 
-## Who I am and how to work with me
-- I'm Sid, a first-year CS (ML track) student at UMD. I know Java and Python basics, some Swift, and core ML concepts. I'm new to web dev (React, APIs, databases) and new to Claude Code.
+## How to work with me
 - **You write most of the code. My goal is to understand every part of it well enough to explain it in an internship interview.**
 - How to work:
   1. **Plan before coding.** For any new piece, give me a short plan (files, functions, libraries, and *why*) and wait for my OK.
