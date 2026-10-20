@@ -1,10 +1,11 @@
 // Tests for logging a dish from the menu screen (MenuView + MenuList + PortionButtons).
 // api.js is faked, so we control what "the server" answers and check what we sent it.
 
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, getMenu, logMeal } from '../api.js'
+import { TOAST_MS } from '../useMealLogger.js'
 import MenuView from './MenuView.jsx'
 
 vi.mock('../api.js', async (importOriginal) => ({
@@ -102,5 +103,55 @@ describe('logging a dish', () => {
     expect(
       await screen.findByText("Couldn't log Banana: No nutrition stored for recipe '111*1'."),
     ).toBeInTheDocument()
+  })
+
+  describe('the "Logged" toast', () => {
+    beforeEach(() => {
+      // Fake clock we can fast-forward. shouldAdvanceTime lets it also tick by itself, which
+      // userEvent and findBy need to keep working.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('disappears by itself after a few seconds', async () => {
+      logMeal.mockResolvedValue({ id: 1, name: 'Banana', servings: 1, calories: 109.8 })
+      const bananaButtons = await renderMenu()
+
+      await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+      expect(await screen.findByText('Logged 1x Banana (110 cal).')).toBeInTheDocument()
+
+      act(() => vi.advanceTimersByTime(TOAST_MS))
+      expect(screen.queryByText('Logged 1x Banana (110 cal).')).not.toBeInTheDocument()
+    })
+
+    it('restarts its timer when a second dish is logged', async () => {
+      logMeal.mockResolvedValue({ id: 1, name: 'Banana', servings: 1, calories: 109.8 })
+      const bananaButtons = await renderMenu()
+
+      await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+      await screen.findByText('Logged 1x Banana (110 cal).')
+      act(() => vi.advanceTimersByTime(TOAST_MS - 500))
+
+      logMeal.mockResolvedValue({ id: 2, name: 'Banana', servings: 2, calories: 219.6 })
+      await userEvent.click(within(bananaButtons).getByRole('button', { name: '2x' }))
+      await screen.findByText('Logged 2x Banana (220 cal).')
+      // The first toast's timer would fire here; the second toast must survive it.
+      act(() => vi.advanceTimersByTime(1000))
+      expect(screen.getByText('Logged 2x Banana (220 cal).')).toBeInTheDocument()
+    })
+
+    it('keeps an error on screen instead of hiding it', async () => {
+      logMeal.mockRejectedValue(new ApiError('Server error.', 500))
+      const bananaButtons = await renderMenu()
+
+      await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+      await screen.findByText("Couldn't log Banana: Server error.")
+
+      act(() => vi.advanceTimersByTime(TOAST_MS * 2))
+      expect(screen.getByRole('alert')).toHaveTextContent("Couldn't log Banana: Server error.")
+    })
   })
 })

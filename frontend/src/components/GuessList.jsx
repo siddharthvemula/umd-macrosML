@@ -15,7 +15,13 @@ import PortionButtons from './PortionButtons.jsx'
  */
 export default function GuessList({ guesses, loggingId, onLog }) {
   if (guesses.length === 0) {
-    return <p className="notice">No dishes with nutrition info on today's menu for this meal.</p>
+    return (
+      <div className="empty-state">
+        <span className="empty-state-icon" aria-hidden="true">🤷</span>
+        <p className="empty-state-title">No dishes with nutrition info on today's menu for this meal.</p>
+        <p className="empty-state-hint">Try another meal above, or log from the menu below.</p>
+      </div>
+    )
   }
 
   return (

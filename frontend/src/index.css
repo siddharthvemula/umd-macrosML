@@ -243,13 +243,6 @@ button:disabled {
   color: var(--error);
 }
 
-.notice--success {
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--success-soft);
-  color: var(--success);
-}
-
 /* Menu: meal headings, then dish rows. */
 .meal h3 {
   margin: var(--space-5) 0 var(--space-2);
@@ -621,7 +614,52 @@ input.menu-filter {
   .skeleton { animation: none; }
   /* Slowed down rather than stopped, so it still reads as "working". */
   .spinner { animation-duration: 2.4s; }
+  /* No slide; it still disappears when useMealLogger removes it. */
+  .toast { animation: none; }
   .macro-ring-fill { transition: none; }
+}
+
+/* "Logged ..." toast: floats above the bottom edge, fades in, then fades out by itself.
+   The animation's 3s matches TOAST_MS in useMealLogger.js. */
+.toast {
+  position: fixed;
+  left: 50%;
+  /* env(safe-area-inset-bottom) keeps it above the iPhone home bar. */
+  bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--space-4));
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+  transform: translateX(-50%);
+  animation: toast-life 3s ease forwards;
+}
+
+.toast-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--success);
+  /* The page background color: dark on light green in dark mode, light on dark green in light mode. */
+  color: var(--bg);
+  font-size: 0.8rem;
+}
+
+@keyframes toast-life {
+  0% { opacity: 0; transform: translate(-50%, 12px); }
+  8%, 85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
 }
 
 /* Hidden on screen but still read by screen readers. */
@@ -936,6 +974,9 @@ input.menu-filter {
 }
 
 .app-footer summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   cursor: pointer;
 }
 
