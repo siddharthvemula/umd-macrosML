@@ -1,4 +1,5 @@
-// The recognizer's top guesses for a plate photo, each with portion buttons. Display only:
+// The recognizer's top guesses for a plate photo, as cards: rank, name, a "% match" badge and
+// bar, the macros, and portion buttons. Display only:
 // it gets the guesses and an onLog callback and never calls the API itself.
 
 import PortionButtons from './PortionButtons.jsx'
@@ -19,24 +20,34 @@ export default function GuessList({ guesses, loggingId, onLog }) {
 
   return (
     <>
-      <p className="notice">Tap a portion for each dish on your plate.</p>
-      <ol className="dish-list">
-        {guesses.map((guess) => (
-          <li key={guess.recipe_id} className="dish">
-            <div>
-              <span className="dish-name">{guess.name}</span>
-              <span className="dish-station">{formatScore(guess.score)} match</span>
-            </div>
-            <div className="dish-macros">
-              <span>{Math.round(guess.nutrition.calories)} cal per serving</span>
+      <p className="guess-intro">Tap a portion for each dish on your plate.</p>
+      <ol className="guess-list">
+        {guesses.map((guess, index) => {
+          const { nutrition } = guess
+          return (
+            <li key={guess.recipe_id} className="guess-card">
+              <div className="guess-top">
+                <span className="guess-rank" aria-hidden="true">{index + 1}</span>
+                <span className="dish-name">{guess.name}</span>
+                <span className="match-badge">{formatScore(guess.score)} match</span>
+              </div>
+              {/* The bar shows the real score, not one scaled to the top guess, so a weak
+                  "best" guess also looks weak. At least 2% wide, so a tiny score is still visible. */}
+              <div className="match-bar" aria-hidden="true">
+                <span style={{ width: `${Math.max(guess.score * 100, 2)}%` }} />
+              </div>
+              <span className="dish-meta">
+                {`${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein · ` +
+                  `${nutrition.carbs_g}g carbs · ${nutrition.fat_g}g fat per serving`}
+              </span>
               <PortionButtons
                 dishName={guess.name}
                 disabled={guess.recipe_id === loggingId}
                 onLog={(servings) => onLog(guess, servings)}
               />
-            </div>
-          </li>
-        ))}
+            </li>
+          )
+        })}
       </ol>
     </>
   )

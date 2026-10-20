@@ -287,7 +287,6 @@ button:disabled {
   font-weight: 600;
 }
 
-.dish-station,
 .dish-macros {
   color: var(--muted);
   font-size: var(--text-sm);
@@ -620,6 +619,8 @@ input.menu-filter {
 /* Some people turn off animations in their phone settings (motion sickness); respect that. */
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
+  /* Slowed down rather than stopped, so it still reads as "working". */
+  .spinner { animation-duration: 2.4s; }
   .macro-ring-fill { transition: none; }
 }
 
@@ -651,26 +652,221 @@ input.menu-filter {
   flex: 1;
 }
 
-/* "Log from a photo": meal + photo inputs, a preview, then the guesses. */
-.photo-controls {
+/* "Log from a photo": a big upload button, then the photo beside the guess cards. */
+.meal-picker {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-5);
   align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
-.photo-controls label {
+/* The big first button: a tall red tile with a camera icon. */
+.photo-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 140px;
+  padding: var(--space-5);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.photo-upload:hover {
+  background: var(--accent-hover);
+}
+
+.photo-upload:active {
+  transform: scale(0.98);
+}
+
+/* The real input is hidden, so show its keyboard focus on the label around it. */
+.photo-upload:has(input:focus-visible),
+.photo-retake:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.photo-upload-icon {
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.photo-upload-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.photo-upload-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.is-disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+/* Desktop: photo column on the left, guesses on the right. Phones stack them (below). */
+.photo-results {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.photo-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.photo-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.photo-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+/* Darkens the photo with a spinner on top while CLIP runs. */
+.photo-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: rgb(0 0 0 / 55%);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgb(255 255 255 / 35%);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.photo-retake {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-guesses > .notice:first-child {
+  margin-top: 0;
+}
+
+/* Guess cards: rank, name, % badge, then a thin match bar, macros and portion buttons. */
+.guess-intro {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.guess-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guess-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+
+.guess-card:hover,
+.guess-card:focus-within {
+  border-color: var(--accent);
+}
+
+.guess-top {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.photo-preview {
+.guess-top .dish-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.guess-rank {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.match-badge {
+  flex: none;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-bar {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.match-bar span {
   display: block;
-  max-width: 100%;
-  max-height: 240px;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.guess-card .portions {
+  margin-top: 0;
+}
+
+.not-listed {
+  width: 100%;
   margin-top: var(--space-3);
-  border-radius: var(--radius-sm);
 }
 
 .menu-search {
@@ -766,8 +962,22 @@ input.menu-filter {
     gap: 6px;
   }
 
-  .dish-macros {
-    text-align: left;
+  /* Stack the photo above the guesses; a shorter photo leaves room for the first guesses. */
+  .photo-results {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .photo-preview {
+    aspect-ratio: 4 / 3;
+  }
+
+  .photo-upload {
+    min-height: 160px;
+  }
+
+  .card-header {
+    flex-wrap: wrap;
   }
 
   /* Smaller ring text so "1108" and "/ 2000" fit inside a ~75px ring. */
@@ -831,7 +1041,6 @@ input.menu-filter {
   }
 
   /* Label above a full-width control, instead of a cramped label-and-control line. */
-  .photo-controls label,
   .menu-search label {
     flex-direction: column;
     align-items: stretch;
@@ -845,21 +1054,8 @@ input.menu-filter {
     min-height: 44px;
   }
 
-  .photo-controls select,
   .menu-search input {
     width: 100%;
-  }
-
-  .photo-controls input[type='file'] {
-    max-width: 100%;
-  }
-
-  /* The browser's own "Choose File" button inside the file input: the main action on this screen. */
-  .photo-controls input[type='file']::file-selector-button {
-    min-height: 44px;
-    margin-right: var(--space-2);
-    padding: 0 var(--space-4);
-    font-size: var(--text-base);
   }
 
   .link-button {

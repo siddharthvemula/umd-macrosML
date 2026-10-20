@@ -36,7 +36,7 @@ const resultOf = (guesses, photoId = 7) => ({
  */
 async function renderAndUpload(props = {}) {
   render(<PhotoLogView hallId="yahentamitsi" {...props} />)
-  await userEvent.upload(screen.getByLabelText('Plate photo'), PLATE)
+  await userEvent.upload(screen.getByLabelText(/plate photo/i), PLATE)
 }
 
 describe('PhotoLogView', () => {
@@ -58,7 +58,7 @@ describe('PhotoLogView', () => {
     expect(screen.queryByLabelText('Plate photo')).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'I understand' }))
-    expect(screen.getByLabelText('Plate photo')).toBeInTheDocument()
+    expect(screen.getByLabelText(/plate photo/i)).toBeInTheDocument()
   })
 
   it('remembers the accepted notice on later visits', async () => {
@@ -68,7 +68,7 @@ describe('PhotoLogView', () => {
     unmount()
 
     render(<PhotoLogView hallId="yahentamitsi" />)
-    expect(screen.getByLabelText('Plate photo')).toBeInTheDocument()
+    expect(screen.getByLabelText(/plate photo/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'I understand' })).not.toBeInTheDocument()
   })
 
@@ -179,11 +179,32 @@ describe('PhotoLogView', () => {
     await renderAndUpload()
 
     expect(screen.getByText(/Analyzing photo/)).toBeInTheDocument()
-    expect(screen.getByLabelText('Plate photo')).toBeDisabled()
+    expect(screen.getByLabelText(/plate photo/i)).toBeDisabled()
     expect(screen.getByLabelText('Meal')).toBeDisabled()
 
     finishRequest(resultOf([TACOS]))
     await screen.findByText('Beef Tacos')
-    expect(screen.getByLabelText('Plate photo')).toBeEnabled()
+    expect(screen.getByLabelText(/plate photo/i)).toBeEnabled()
+  })
+
+  it('starts with one big "Snap a plate photo" button, which becomes "Retake" after a photo', async () => {
+    recognizePhoto.mockResolvedValue(resultOf([TACOS]))
+    render(<PhotoLogView hallId="yahentamitsi" />)
+    expect(screen.getByLabelText(/Snap a plate photo/)).toBeInTheDocument()
+
+    await userEvent.upload(screen.getByLabelText(/Snap a plate photo/), PLATE)
+    await screen.findByText('Beef Tacos')
+    expect(screen.queryByLabelText(/Snap a plate photo/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Retake plate photo')).toBeEnabled()
+  })
+
+  it('shows each guess as a numbered card with its full macros', async () => {
+    recognizePhoto.mockResolvedValue(resultOf([TACOS, SALSA]))
+    await renderAndUpload()
+
+    const cards = await screen.findAllByRole('listitem')
+    expect(cards[0]).toHaveTextContent('1Beef Tacos31% match')
+    expect(cards[0]).toHaveTextContent('250 cal · 14g protein · 20g carbs · 12g fat per serving')
+    expect(cards[1]).toHaveTextContent('2Pico de Gallo<1% match')
   })
 })

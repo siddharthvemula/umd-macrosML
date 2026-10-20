@@ -51,7 +51,7 @@ describe('App', () => {
     expect(await screen.findByText('Maryland Crab Soup')).toBeInTheDocument()
     expect(screen.queryByText('Banana')).not.toBeInTheDocument()
 
-    await userEvent.upload(screen.getByLabelText('Plate photo'), new File(['x'], 'plate.jpg', { type: 'image/jpeg' }))
+    await userEvent.upload(screen.getByLabelText(/plate photo/i), new File(['x'], 'plate.jpg', { type: 'image/jpeg' }))
     expect(recognizePhoto).toHaveBeenCalledWith(expect.any(File), 'yahentamitsi', '')
   })
 

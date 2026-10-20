@@ -31,18 +31,15 @@ export default function MenuSearch({ items, meal, excludeIds, loggingId, onLog }
       <ul className="dish-list">
         {matches.map((item) => (
           <li key={item.recipe_id} className="dish">
-            <div>
+            <div className="dish-info">
               <span className="dish-name">{item.name}</span>
-              <span className="dish-station">{item.station}</span>
+              <span className="dish-meta">{`${item.station} · ${Math.round(item.nutrition.calories)} cal per serving`}</span>
             </div>
-            <div className="dish-macros">
-              <span>{Math.round(item.nutrition.calories)} cal per serving</span>
-              <PortionButtons
-                dishName={item.name}
-                disabled={item.recipe_id === loggingId}
-                onLog={(servings) => onLog(item, servings)}
-              />
-            </div>
+            <PortionButtons
+              dishName={item.name}
+              disabled={item.recipe_id === loggingId}
+              onLog={(servings) => onLog(item, servings)}
+            />
           </li>
         ))}
       </ul>
