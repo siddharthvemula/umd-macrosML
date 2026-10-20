@@ -37,11 +37,12 @@ export default function MenuView({ hallId, onLogged }) {
   }, [hallId])
 
   return (
-    <div>
+    <section className="menu-view card">
+      <h2 className="card-title">Today's menu</h2>
       {error && <p className="notice notice--error">{error}</p>}
       {!error && !menu && <p className="notice">Loading menu…</p>}
       <LogBanner result={logResult} />
       {menu && <MenuList items={menu.items} loggingId={loggingId} onLog={handleLog} />}
-    </div>
+    </section>
   )
 }

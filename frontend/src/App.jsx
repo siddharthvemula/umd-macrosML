@@ -1,5 +1,5 @@
-// The app's root component: the page header, today's dashboard, the shared hall picker,
-// and the photo and menu screens. It connects them: when either screen logs a dish, the
+// The app's root component: the red header (title + the shared hall picker), today's
+// dashboard, and the photo and menu screens, each drawn as a card. It connects them: when either screen logs a dish, the
 // dashboard reloads, and both screens follow the one hall picker. The footer holds the
 // privacy notice, so it's always one tap away.
 
@@ -37,29 +37,39 @@ export default function App() {
   const handleLogged = () => setLogCount((count) => count + 1)
 
   return (
-    <main className="app">
-      <h1>UMD Dining Macros</h1>
-      <DashboardView refreshKey={logCount} />
+    <>
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div>
+            <h1 className="app-title">UMD Dining Macros</h1>
+            <p className="app-subtitle">Log dining hall meals in a tap</p>
+          </div>
+          {hallId && <HallPicker halls={halls} hallId={hallId} onChange={setHallId} />}
+        </div>
+      </header>
 
-      {hallsError && <p className="notice notice--error">{hallsError}</p>}
-      {!hallsError && !hallId && <p className="notice">Loading halls…</p>}
-      {hallId && (
-        <>
-          <HallPicker halls={halls} hallId={hallId} onChange={setHallId} />
-          {/* A new key makes React start these screens fresh when the hall changes, so no
-              menu, photo or guesses from the old hall are left over. */}
-          <PhotoLogView key={`photo-${hallId}`} hallId={hallId} onLogged={handleLogged} />
-          <MenuView key={`menu-${hallId}`} hallId={hallId} onLogged={handleLogged} />
-        </>
-      )}
+      <main className="app">
+        <DashboardView refreshKey={logCount} />
 
-      <footer className="app-footer">
-        {/* <details> is a built-in show/hide box: no state or JavaScript needed. */}
-        <details>
-          <summary>Privacy</summary>
-          <PrivacyDetails />
-        </details>
-      </footer>
-    </main>
+        {hallsError && <p className="notice notice--error">{hallsError}</p>}
+        {!hallsError && !hallId && <p className="notice">Loading halls…</p>}
+        {hallId && (
+          <>
+            {/* A new key makes React start these screens fresh when the hall changes, so no
+                menu, photo or guesses from the old hall are left over. */}
+            <PhotoLogView key={`photo-${hallId}`} hallId={hallId} onLogged={handleLogged} />
+            <MenuView key={`menu-${hallId}`} hallId={hallId} onLogged={handleLogged} />
+          </>
+        )}
+
+        <footer className="app-footer">
+          {/* <details> is a built-in show/hide box: no state or JavaScript needed. */}
+          <details>
+            <summary>Privacy</summary>
+            <PrivacyDetails />
+          </details>
+        </footer>
+      </main>
+    </>
   )
 }

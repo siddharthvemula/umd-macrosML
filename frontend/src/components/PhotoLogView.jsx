@@ -123,16 +123,16 @@ export default function PhotoLogView({ hallId, onLogged }) {
 
   if (!noticeAccepted) {
     return (
-      <section className="photo-log">
-        <h2>Log from a photo</h2>
+      <section className="photo-log card">
+        <h2 className="card-title">Log from a photo</h2>
         <PhotoNotice onAccept={handleAcceptNotice} />
       </section>
     )
   }
 
   return (
-    <section className="photo-log">
-      <h2>Log from a photo</h2>
+    <section className="photo-log card">
+      <h2 className="card-title">Log from a photo</h2>
       {/* Both inputs are disabled while analyzing, so two requests can't race each other. */}
       <div className="photo-controls">
         <label>

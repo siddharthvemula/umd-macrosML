@@ -20,7 +20,7 @@ export default function MenuList({ items, loggingId, onLog }) {
 
   return groupByMeal(items).map(({ meal, items: mealItems }) => (
     <section key={meal} className="meal">
-      <h2>{meal}</h2>
+      <h3>{meal}</h3>
       <ul className="dish-list">
         {mealItems.map((item) => (
           <DishRow

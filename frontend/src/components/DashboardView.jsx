@@ -59,8 +59,8 @@ export default function DashboardView({ refreshKey }) {
   }
 
   return (
-    <section className="dashboard">
-      <h2>Today</h2>
+    <section className="dashboard card">
+      <h2 className="card-title">Today</h2>
       {error && <p className="notice notice--error">{error}</p>}
       {!error && !day && <p className="notice">Loading today's totals…</p>}
       {day && (

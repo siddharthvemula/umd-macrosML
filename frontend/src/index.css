@@ -1,47 +1,251 @@
-/* Global styles for the whole app. Plain CSS: a few shared colors as variables, then layout. */
+/* Global styles for the whole app. Plain CSS, in three layers:
+   1. Design tokens: every color, space, radius and font size is a variable on :root.
+   2. Dark mode: one media query swaps only the color variables, nothing else.
+   3. Components: cards, buttons, dish rows... built only from the tokens. */
 
+/* ---------- 1. Design tokens ---------- */
 :root {
-  --umd-red: #e21833;
-  --text: #1f1f1f;
-  --muted: #6b6b6b;
-  --border: #dddddd;
-  --background: #fafafa;
-  font-family: system-ui, -apple-system, sans-serif;
+  /* Colors (light). UMD red is the one accent; everything else is neutral gray. */
+  --accent: #e21833;
+  --accent-hover: #c0122a;
+  --accent-soft: #fdecee;
+  --on-accent: #ffffff;
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #f1f2f5;
+  --text: #16181d;
+  --muted: #5f6672;
+  --border: #e3e5ea;
+  --success: #15803d;
+  --success-soft: #e8f6ee;
+  --error: #c0122a;
+  --error-soft: #fdecee;
+  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
+
+  /* Spacing scale: use these instead of one-off pixel values, so gaps line up everywhere. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  /* Type scale. The system font looks native everywhere and needs no download. */
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-sm: 0.85rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+
+  /* Lets the browser draw its own controls (select arrows, scrollbars) in the right theme. */
+  color-scheme: light dark;
+  font-family: var(--font);
+  line-height: 1.45;
   color: var(--text);
-  background: var(--background);
+  background: var(--bg);
 }
 
+/* ---------- 2. Dark mode (follows the phone/computer setting) ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* A lighter red: #e21833 is too dark to read as text on a near-black background. */
+    --accent: #ff4d61;
+    --accent-hover: #ff6b7c;
+    --accent-soft: #3a1a1f;
+    --bg: #0f1115;
+    --surface: #181b21;
+    --surface-2: #22262e;
+    --text: #eceef2;
+    --muted: #9aa1ad;
+    --border: #2c313a;
+    --success: #4ade80;
+    --success-soft: #14301f;
+    --error: #ff6b7c;
+    --error-soft: #3a1a1f;
+    --shadow: none;
+  }
+}
+
+/* ---------- 3. Components ---------- */
 body {
   margin: 0;
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Header: a full-width red bar with the title and the hall picker. */
+.app-header {
+  background: #e21833; /* Always the real UMD red, in both themes: it's the brand bar. */
+  color: #ffffff;
+}
+
+.app-header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.app-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  letter-spacing: -0.01em;
+}
+
+.app-subtitle {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  opacity: 0.85;
 }
 
 .app {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 16px;
+  padding: var(--space-4);
 }
 
-h1 {
-  color: var(--umd-red);
+/* Card: every screen section is one. */
+.card {
+  margin-bottom: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.card-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+/* Form controls: one look for every select and text input. */
+select,
+input[type='search'],
+input[type='number'] {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+select:focus-visible,
+input:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The hall picker sits on the red header, so it gets white-on-red styling. */
+.hall-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .hall-picker select {
-  margin-left: 4px;
-  padding: 4px 8px;
-  font-size: 1rem;
+  border-color: rgb(255 255 255 / 40%);
+  background: rgb(255 255 255 / 15%);
+  color: #ffffff;
+  font-weight: 600;
 }
 
+/* Native option lists don't inherit the translucent header style, so keep them readable. */
+.hall-picker option {
+  color: #16181d;
+}
+
+/* Buttons. Secondary = outlined (portion, Delete); primary = filled red (main action). */
+.button,
+.portions button,
+.logged-meal button,
+.photo-notice button {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.button:hover:not(:disabled),
+.portions button:hover:not(:disabled),
+.logged-meal button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.button--primary,
+.photo-notice button {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.button--primary:hover:not(:disabled),
+.photo-notice button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+/* Status lines. */
 .notice {
+  margin: var(--space-3) 0;
   color: var(--muted);
 }
 
 .notice--error {
-  color: var(--umd-red);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--error-soft);
+  color: var(--error);
 }
 
-.meal h2 {
-  margin: 24px 0 8px;
-  font-size: 1.2rem;
+.notice--success {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* Menu: meal headings, then dish rows. */
+.meal h3 {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--text-base);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.meal:first-of-type h3 {
+  margin-top: 0;
 }
 
 .dish-list {
@@ -54,9 +258,13 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border);
+}
+
+.dish:last-child {
+  border-bottom: none;
 }
 
 .dish-name {
@@ -67,7 +275,7 @@ h1 {
 .dish-station,
 .dish-macros {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 /* Dishes UMD published no nutrition for: still listed, but faded. */
@@ -75,74 +283,51 @@ h1 {
   opacity: 0.55;
 }
 
-.notice--success {
-  color: #1b7a3a;
-}
-
 .dish-macros {
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .portions {
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }
 
 .portions button {
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: white;
-  cursor: pointer;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
 }
 
-.portions button:hover:not(:disabled) {
-  border-color: var(--umd-red);
-  color: var(--umd-red);
-}
-
-.portions button:disabled {
-  cursor: wait;
-  opacity: 0.5;
-}
-
-/* "Today" dashboard: four total tiles, then the logged dishes. */
-.dashboard {
-  margin-bottom: 24px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: white;
-}
-
-.dashboard h2 {
-  margin: 0 0 12px;
-  font-size: 1.2rem;
-}
-
+/* "Today" dashboard: totals, then the logged dishes. */
 .macro-totals {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin: 0 0 12px;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
   padding: 0;
   list-style: none;
 }
 
 .macro-tile {
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
   text-align: center;
 }
 
 .macro-value {
   display: block;
-  font-size: 1.4rem;
+  font-size: var(--text-xl);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .macro-label {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .logged-meals {
@@ -154,8 +339,8 @@ h1 {
 .logged-meal {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 0;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
   border-top: 1px solid var(--border);
 }
 
@@ -163,93 +348,69 @@ h1 {
   flex: 1;
 }
 
-.logged-meal button {
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: white;
-  cursor: pointer;
-}
-
-.logged-meal button:hover:not(:disabled) {
-  border-color: var(--umd-red);
-  color: var(--umd-red);
-}
-
-.logged-meal button:disabled {
-  cursor: wait;
-  opacity: 0.5;
-}
-
 /* "Log from a photo": meal + photo inputs, a preview, then the guesses. */
-.photo-log {
-  margin: 16px 0 24px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: white;
-}
-
-.photo-log h2 {
-  margin: 0 0 12px;
-  font-size: 1.2rem;
-}
-
 .photo-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 24px;
+  gap: var(--space-3) var(--space-5);
   align-items: center;
 }
 
-.photo-controls select {
-  margin-left: 4px;
-  padding: 4px 8px;
-  font-size: 1rem;
+.photo-controls label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .photo-preview {
   display: block;
   max-width: 100%;
   max-height: 240px;
-  margin-top: 12px;
-  border-radius: 8px;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-sm);
 }
 
 .menu-search {
-  margin-top: 12px;
+  margin-top: var(--space-3);
+}
+
+.menu-search label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .menu-search input {
-  margin-left: 4px;
-  padding: 4px 8px;
-  font-size: 1rem;
   /* Fills the row on a phone without pushing past the screen edge. */
-  width: min(240px, 100%);
+  width: min(260px, 100%);
 }
 
 .link-button {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   padding: 0;
   border: none;
   background: none;
-  color: var(--umd-red);
-  font-size: 0.95rem;
-  text-decoration: underline;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
-/* Privacy notice: a bordered box on the photo screen, and the same text in the footer. */
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* Privacy notice: a box with a red edge on the photo screen, and the same text in the footer. */
 .photo-notice {
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--umd-red);
-  border-radius: 8px;
-  background: white;
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 
 .privacy-details ul {
-  margin: 8px 0;
+  margin: var(--space-2) 0;
   padding-left: 20px;
 }
 
@@ -258,14 +419,18 @@ h1 {
   line-height: 1.4;
 }
 
+.privacy-details a {
+  color: var(--accent);
+}
+
 .privacy-disclaimer {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .app-footer {
-  margin-top: 32px;
-  padding-top: 12px;
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 0.9rem;
@@ -280,19 +445,16 @@ h1 {
    everything tappable is at least 44px tall, Apple's minimum comfortable touch size. */
 @media (max-width: 480px) {
   .app {
-    padding: 12px;
+    padding: var(--space-3);
   }
 
-  h1 {
-    margin: 8px 0 16px;
-    font-size: 1.6rem;
+  .app-header-inner {
+    padding: var(--space-3) var(--space-4);
   }
 
-  /* The cards sit inside the page padding, so trim theirs to give content more width. */
-  .dashboard,
-  .photo-log,
-  .photo-notice {
-    padding: 12px;
+  /* Less inner padding on phones gives the content more of the narrow screen. */
+  .card {
+    padding: var(--space-4);
   }
 
   .dish {
@@ -309,42 +471,49 @@ h1 {
   .portions {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-top: 8px;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
   }
 
+  .button,
   .portions button,
   .logged-meal button,
   .photo-notice button {
     min-height: 44px;
-    font-size: 1rem;
-  }
-
-  .logged-meal button {
-    padding: 0 12px;
+    font-size: var(--text-base);
   }
 
   .photo-notice button {
     width: 100%;
   }
 
-  /* Label above a full-width control, instead of a cramped label-and-control line. */
-  .hall-picker,
-  .photo-controls label,
-  .menu-search label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  /* The hall picker gets the full header width under the title. */
+  .hall-picker {
     width: 100%;
   }
 
-  .hall-picker select,
+  .hall-picker select {
+    flex: 1;
+  }
+
+  /* Label above a full-width control, instead of a cramped label-and-control line. */
+  .photo-controls label,
+  .menu-search label {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+    width: 100%;
+  }
+
+  select,
+  input[type='search'],
+  input[type='number'] {
+    min-height: 44px;
+  }
+
   .photo-controls select,
   .menu-search input {
-    margin-left: 0;
     width: 100%;
-    min-height: 44px;
-    box-sizing: border-box;
   }
 
   .photo-controls input[type='file'] {
@@ -354,9 +523,9 @@ h1 {
   /* The browser's own "Choose File" button inside the file input: the main action on this screen. */
   .photo-controls input[type='file']::file-selector-button {
     min-height: 44px;
-    margin-right: 8px;
-    padding: 0 16px;
-    font-size: 1rem;
+    margin-right: var(--space-2);
+    padding: 0 var(--space-4);
+    font-size: var(--text-base);
   }
 
   .link-button {
