@@ -17,11 +17,11 @@ vi.mock('../api.js', async (importOriginal) => ({
 const PLATE = new File(['fake pixels'], 'plate.jpg', { type: 'image/jpeg' })
 
 const TACOS = {
-  recipe_id: '111*1', name: 'Beef Tacos', score: 0.31,
+  recipe_id: '111*1', name: 'Beef Tacos', score: 0.31, suggested_servings: 1.5,
   nutrition: { calories: 250.4, protein_g: 14, carbs_g: 20, fat_g: 12 },
 }
 const SALSA = {
-  recipe_id: '222*1', name: 'Pico de Gallo', score: 0.004,
+  recipe_id: '222*1', name: 'Pico de Gallo', score: 0.004, suggested_servings: 1,
   nutrition: { calories: 10, protein_g: 0, carbs_g: 2, fat_g: 0 },
 }
 
@@ -107,19 +107,35 @@ describe('PhotoLogView', () => {
     expect(recognizePhoto).toHaveBeenLastCalledWith(PLATE, 'yahentamitsi', 'Lunch')
   })
 
-  it('logs a guess with the chosen portion and tells App', async () => {
+  it('logs a guess at its suggested portion and tells App', async () => {
     recognizePhoto.mockResolvedValue(resultOf([TACOS, SALSA]))
     logMeal.mockResolvedValue({ id: 1, calories: 375.6 })
     const onLogged = vi.fn()
     await renderAndUpload({ onLogged })
 
     const tacoButtons = await screen.findByRole('group', { name: 'Log Beef Tacos' })
-    await userEvent.click(within(tacoButtons).getByRole('button', { name: '1.5x' }))
+    await userEvent.click(within(tacoButtons).getByRole('button', { name: 'Log 1.5x' }))
 
     // 7 is the photo_id from the recognize result: this log becomes a training label.
     expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 7)
     expect(await screen.findByText('Logged 1.5x Beef Tacos (376 cal).')).toBeInTheDocument()
     expect(onLogged).toHaveBeenCalledTimes(1)
+  })
+
+  it("starts each guess at CLIP's suggested portion, labeled, and can be changed", async () => {
+    recognizePhoto.mockResolvedValue(resultOf([TACOS, SALSA]))
+    logMeal.mockResolvedValue({ id: 1, calories: 250 })
+    await renderAndUpload()
+
+    const tacos = await screen.findByRole('group', { name: 'Log Beef Tacos' })
+    expect(within(tacos).getByText('Suggested: 1.5x')).toBeInTheDocument()
+    expect(within(tacos).getByText('1.5x')).toBeInTheDocument()
+    expect(within(tacos).getByText('376 cal · 21g protein · 30g carbs · 18g fat')).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: 'Log Pico de Gallo' })).getByText('Suggested: 1x')).toBeInTheDocument()
+
+    await userEvent.click(within(tacos).getByRole('button', { name: 'Fewer servings' }))
+    await userEvent.click(within(tacos).getByRole('button', { name: 'Log 1.25x' }))
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.25, 7)
   })
 
   it("links logs to the newest photo's id after a re-analyze", async () => {
@@ -130,9 +146,9 @@ describe('PhotoLogView', () => {
 
     await userEvent.selectOptions(screen.getByLabelText('Meal'), 'Lunch')
     const tacoButtons = await screen.findByRole('group', { name: 'Log Beef Tacos' })
-    await userEvent.click(within(tacoButtons).getByRole('button', { name: '1x' }))
+    await userEvent.click(within(tacoButtons).getByRole('button', { name: 'Log 1.5x' }))
 
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1, 8)
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 8)
   })
 
   it('logs a dish the recognizer missed from the menu search, linked to the photo', async () => {
@@ -145,7 +161,8 @@ describe('PhotoLogView', () => {
     await userEvent.click(await screen.findByRole('button', { name: "Not listed? Search today's menu" }))
     await userEvent.type(await screen.findByLabelText("Search today's menu"), 'rice')
     const riceButtons = screen.getByRole('group', { name: 'Log Spanish Rice' })
-    await userEvent.click(within(riceButtons).getByRole('button', { name: '1x' }))
+    // Searched dishes have no CLIP suggestion, so they start at 1x.
+    await userEvent.click(within(riceButtons).getByRole('button', { name: 'Log 1x' }))
 
     expect(getMenu).toHaveBeenCalledWith('yahentamitsi')
     expect(logMeal).toHaveBeenCalledWith('333*1', 1, 7)

@@ -188,7 +188,7 @@ summary:focus-visible {
   color: #16181d;
 }
 
-/* Buttons. Secondary = outlined (portion, Delete); primary = filled red (main action). */
+/* Buttons. Secondary = outlined (stepper − / +, Delete); primary = filled red (main action, Log). */
 .button,
 .portions button,
 .logged-meal button,
@@ -213,14 +213,16 @@ summary:focus-visible {
 }
 
 .button--primary,
-.photo-notice-accept {
+.photo-notice-accept,
+.portions .portion-log {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
 }
 
 .button--primary:hover:not(:disabled),
-.photo-notice-accept:hover:not(:disabled) {
+.photo-notice-accept:hover:not(:disabled),
+.portions .portion-log:hover:not(:disabled) {
   background: var(--accent-hover);
   color: var(--on-accent);
 }
@@ -389,10 +391,19 @@ input.menu-filter {
   font-variant-numeric: tabular-nums;
 }
 
+/* Portion stepper: [− 1.25x +] [Log 1.25x], then the live macros for that amount. */
 .portions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-1);
   margin-top: var(--space-1);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .portions button {
@@ -400,6 +411,39 @@ input.menu-filter {
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
+}
+
+/* − and + are round, same width, so the value between them doesn't shift. */
+.stepper button:not(.portion-log) {
+  width: 32px;
+  padding: 0;
+  font-size: var(--text-base);
+}
+
+/* Fixed width + tabular digits: "0.75x" and "1x" take the same space. */
+.stepper-value {
+  min-width: 3.25em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.stepper .portion-log {
+  margin-left: var(--space-1);
+}
+
+.portion-macros {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.portion-suggested {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 /* Card title with a small action on the right ("Today" ... "Edit goals"). */
@@ -1072,12 +1116,22 @@ input.menu-filter {
     flex: 1;
   }
 
-  /* Four equal buttons across the full row, so they line up from dish to dish. */
+  /* Full-width stepper: − value + on the left, Log fills the rest, lined up dish to dish. */
   .portions {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-2);
+    align-items: stretch;
     margin-top: var(--space-2);
+  }
+
+  .portions .portion-suggested {
+    align-self: flex-start;
+  }
+
+  .stepper button:not(.portion-log) {
+    width: 44px;
+  }
+
+  .stepper .portion-log {
+    flex: 1;
   }
 
   .button,

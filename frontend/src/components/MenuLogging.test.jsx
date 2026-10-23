@@ -1,4 +1,4 @@
-// Tests for logging a dish from the menu screen (MenuView + MenuList + PortionButtons).
+// Tests for logging a dish from the menu screen (MenuView + MenuList + PortionStepper).
 // api.js is faked, so we control what "the server" answers and check what we sent it.
 
 import { act, render, screen, within } from '@testing-library/react'
@@ -25,11 +25,24 @@ const CRAB_SOUP = {
 /**
  * Renders the menu screen with Banana and Crab Soup and waits for it to load.
  *
- * @returns {Promise<HTMLElement>} Banana's group of portion buttons.
+ * @returns {Promise<HTMLElement>} Banana's portion stepper.
  */
 async function renderMenu() {
   render(<MenuView hallId="south_campus" />)
   return screen.findByRole('group', { name: 'Log Banana' })
+}
+
+/**
+ * Steps a dish's stepper from 1x to `servings` with + / −, then taps Log.
+ *
+ * @param {HTMLElement} stepper - the dish's group, e.g. from renderMenu().
+ * @param {number} servings - e.g. 1.5
+ */
+async function logPortion(stepper, servings) {
+  const steps = (servings - 1) / 0.25
+  const button = within(stepper).getByRole('button', { name: steps > 0 ? 'More servings' : 'Fewer servings' })
+  for (let i = 0; i < Math.abs(steps); i++) await userEvent.click(button)
+  await userEvent.click(within(stepper).getByRole('button', { name: `Log ${servings}x` }))
 }
 
 describe('logging a dish', () => {
@@ -42,7 +55,7 @@ describe('logging a dish', () => {
     logMeal.mockResolvedValue({ id: 1, name: 'Banana', servings: 1.5, calories: 164.7 })
     const bananaButtons = await renderMenu()
 
-    await userEvent.click(within(bananaButtons).getByRole('button', { name: '1.5x' }))
+    await logPortion(bananaButtons, 1.5)
 
     // null photo: a dish picked from the menu isn't a training label.
     expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, null)
@@ -55,24 +68,42 @@ describe('logging a dish', () => {
     const bananaButtons = await screen.findByRole('group', { name: 'Log Banana' })
 
     logMeal.mockResolvedValueOnce({ id: 1, calories: 109.8 })
-    await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+    await logPortion(bananaButtons, 1)
     await screen.findByText('Logged 1x Banana (110 cal).')
     expect(onLogged).toHaveBeenCalledTimes(1)
 
     logMeal.mockRejectedValueOnce(new ApiError('Server error.', 500))
-    await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+    await logPortion(bananaButtons, 1)
     await screen.findByText("Couldn't log Banana: Server error.")
     expect(onLogged).toHaveBeenCalledTimes(1)
   })
 
-  it('offers all four portions', async () => {
-    const bananaButtons = await renderMenu()
+  it('starts at 1x and shows live macros for the chosen amount', async () => {
+    const stepper = await renderMenu()
+    expect(within(stepper).getByText('110 cal · 1.3g protein · 28.2g carbs · 0.4g fat')).toBeInTheDocument()
 
-    const labels = within(bananaButtons).getAllByRole('button').map((b) => b.textContent)
-    expect(labels).toEqual(['0.5x', '1x', '1.5x', '2x'])
+    await userEvent.click(within(stepper).getByRole('button', { name: 'More servings' }))
+    expect(within(stepper).getByText('1.25x')).toBeInTheDocument()
+    expect(within(stepper).getByText('137 cal · 1.6g protein · 35.3g carbs · 0.5g fat')).toBeInTheDocument()
+    // No CLIP suggestion on the menu, so no "Suggested" label.
+    expect(within(stepper).queryByText(/Suggested/)).not.toBeInTheDocument()
   })
 
-  it('gives a dish with no nutrition no buttons', async () => {
+  it('stops at 0.5x and 3x', async () => {
+    const stepper = await renderMenu()
+    const fewer = within(stepper).getByRole('button', { name: 'Fewer servings' })
+    const more = within(stepper).getByRole('button', { name: 'More servings' })
+
+    for (let i = 0; i < 2; i++) await userEvent.click(fewer)
+    expect(within(stepper).getByText('0.5x')).toBeInTheDocument()
+    expect(fewer).toBeDisabled()
+
+    for (let i = 0; i < 10; i++) await userEvent.click(more)
+    expect(within(stepper).getByText('3x')).toBeInTheDocument()
+    expect(more).toBeDisabled()
+  })
+
+  it('gives a dish with no nutrition no stepper', async () => {
     await renderMenu()
 
     expect(screen.queryByRole('group', { name: 'Log Maryland Crab Soup' })).not.toBeInTheDocument()
@@ -83,7 +114,7 @@ describe('logging a dish', () => {
     let finishRequest
     logMeal.mockReturnValue(new Promise((resolve) => (finishRequest = resolve)))
     const bananaButtons = await renderMenu()
-    const oneX = within(bananaButtons).getByRole('button', { name: '1x' })
+    const oneX = within(bananaButtons).getByRole('button', { name: 'Log 1x' })
 
     await userEvent.click(oneX)
     expect(oneX).toBeDisabled()
@@ -98,7 +129,7 @@ describe('logging a dish', () => {
     logMeal.mockRejectedValue(new ApiError("No nutrition stored for recipe '111*1'.", 404))
     const bananaButtons = await renderMenu()
 
-    await userEvent.click(within(bananaButtons).getByRole('button', { name: '2x' }))
+    await logPortion(bananaButtons, 2)
 
     expect(
       await screen.findByText("Couldn't log Banana: No nutrition stored for recipe '111*1'."),
@@ -120,7 +151,7 @@ describe('logging a dish', () => {
       logMeal.mockResolvedValue({ id: 1, name: 'Banana', servings: 1, calories: 109.8 })
       const bananaButtons = await renderMenu()
 
-      await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+      await logPortion(bananaButtons, 1)
       expect(await screen.findByText('Logged 1x Banana (110 cal).')).toBeInTheDocument()
 
       act(() => vi.advanceTimersByTime(TOAST_MS))
@@ -131,12 +162,12 @@ describe('logging a dish', () => {
       logMeal.mockResolvedValue({ id: 1, name: 'Banana', servings: 1, calories: 109.8 })
       const bananaButtons = await renderMenu()
 
-      await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+      await logPortion(bananaButtons, 1)
       await screen.findByText('Logged 1x Banana (110 cal).')
       act(() => vi.advanceTimersByTime(TOAST_MS - 500))
 
       logMeal.mockResolvedValue({ id: 2, name: 'Banana', servings: 2, calories: 219.6 })
-      await userEvent.click(within(bananaButtons).getByRole('button', { name: '2x' }))
+      await logPortion(bananaButtons, 2)
       await screen.findByText('Logged 2x Banana (220 cal).')
       // The first toast's timer would fire here; the second toast must survive it.
       act(() => vi.advanceTimersByTime(1000))
@@ -147,7 +178,7 @@ describe('logging a dish', () => {
       logMeal.mockRejectedValue(new ApiError('Server error.', 500))
       const bananaButtons = await renderMenu()
 
-      await userEvent.click(within(bananaButtons).getByRole('button', { name: '1x' }))
+      await logPortion(bananaButtons, 1)
       await screen.findByText("Couldn't log Banana: Server error.")
 
       act(() => vi.advanceTimersByTime(TOAST_MS * 2))

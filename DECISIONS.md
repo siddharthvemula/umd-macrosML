@@ -206,6 +206,12 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **A tie suggests 1x** (medium is listed first and `max()` keeps the first of equal scores). No signal should mean a normal serving, not small.
 - **Real-photo check: it leans "large"** (8 of 10 dishes on the 3 eval plates). CLIP sees a full plate and can't tell which part is which dish. Treat it as a starting point; logged photos now record suggested vs chosen servings (Step 3), which is the data to measure and fix this.
 
+- **Step 2: the four portion buttons became one `PortionStepper` (− / + from 0.5x to 3x in 0.25 steps, live "cal · protein · carbs · fat" for that amount, and a "Log 1.25x" button) on the menu, the photo guesses and the photo search.** A stepper can't log on tap like the old buttons did, so logging got its own button, which says the amount so you see what you're about to log. 3x stays under the API's 5x limit. On a guess it starts at `suggested_servings` with a "Suggested: 1.5x" tag; elsewhere it starts at 1x with no tag.
+- **The math is pure functions in `portions.js` (`stepServings`, `macrosFor`, `formatServings`),** tested without React, same idea as `menu.js`. Quarter steps are exact in binary floating point, so 0.25 + 0.25… never shows as 1.2499999.
+- **Menu rows dropped their per-serving macro line;** the stepper's live line shows the same numbers at 1x, and the test caught the duplicate. Guess cards keep "per serving" because they usually start at a suggestion other than 1x.
+- **The amount is a `<span aria-live="polite">`, not `<output>`.** `<output>` counts as a "status" region, and the menu would have hundreds of them next to the real status messages (the search's "1 dish matches"). An existing test caught it.
+- **Each stepper keeps its own amount in `useState`.** It resets for each new photo because the photo screen clears `guesses` (unmounting the cards) while analyzing.
+
 ## README wrap-up (2026-10-19)
 - **README written for recruiters:** screenshots first, then a "How the ML works" section, Docker as the main way to run it (local dev moved into a collapsed section), and the exact test count (246: 164 pytest + 82 Vitest).
 - **Screenshots are 390px phone shots in `docs/screenshots/`,** made with the same throwaway DevTools script against a copy of the DB, with a fake demo device ID. They're scaled to 520px wide to keep the repo small. The photo shot keeps an honest miss (carrots read as "Baked Sweet Potato") rather than a cherry-picked perfect result.

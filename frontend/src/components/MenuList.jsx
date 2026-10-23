@@ -5,7 +5,7 @@
 
 import { useId, useState } from 'react'
 import { filterMenu, groupByMeal, groupByStation } from '../menu.js'
-import PortionButtons from './PortionButtons.jsx'
+import PortionStepper from './PortionStepper.jsx'
 
 /**
  * A hall's menu: search box, meal headings, collapsible stations, dish rows.
@@ -88,8 +88,8 @@ export default function MenuList({ items, loggingId, onLog }) {
 }
 
 /**
- * One dish: the name first, the four macros per serving in smaller text, then portion buttons.
- * Dishes with no nutrition get no buttons, since the API can't log macros it doesn't know.
+ * One dish: the name and serving size, then the portion stepper with live macros. Dishes with
+ * no nutrition say so and get no stepper, since the API can't log macros it doesn't know.
  *
  * @param {{item: {name: string, nutrition: object|null}, isLogging: boolean,
  *   onLog: (servings: number) => void}} props
@@ -101,15 +101,11 @@ function DishRow({ item, isLogging, onLog }) {
     <li className={nutrition ? 'dish' : 'dish dish--no-data'}>
       <div className="dish-info">
         <span className="dish-name">{item.name}</span>
-        <span className="dish-meta">
-          {nutrition
-            ? `${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein · ` +
-              `${nutrition.carbs_g}g carbs · ${nutrition.fat_g}g fat`
-            : 'No nutrition info'}
-        </span>
+        {/* With nutrition, the stepper below shows the macros (live for the chosen amount). */}
+        {!nutrition && <span className="dish-meta">No nutrition info</span>}
         {nutrition?.serving_size && <span className="dish-serving">{`1 serving = ${nutrition.serving_size}`}</span>}
       </div>
-      {nutrition && <PortionButtons dishName={item.name} disabled={isLogging} onLog={onLog} />}
+      {nutrition && <PortionStepper dishName={item.name} nutrition={nutrition} disabled={isLogging} onLog={onLog} />}
     </li>
   )
 }

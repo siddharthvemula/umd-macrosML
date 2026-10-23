@@ -1,14 +1,14 @@
 // The "not listed? search today's menu" box on the photo screen. When the recognizer
-// misses a dish, the student finds it here and logs it with the portion buttons; the
+// misses a dish, the student finds it here and logs it with the portion stepper; the
 // photo screen links that log to the photo, which makes it a correction label for
 // training. Display only: it gets the menu and an onLog callback, never calls the API.
 
 import { useState } from 'react'
 import { searchMenu } from '../menu.js'
-import PortionButtons from './PortionButtons.jsx'
+import PortionStepper from './PortionStepper.jsx'
 
 /**
- * A search box over today's menu, with portion buttons on each match.
+ * A search box over today's menu, with a portion stepper on each match.
  *
  * @param {{items: object[], meal: string, excludeIds: string[], loggingId: string|null,
  *   onLog: (item: object, servings: number) => void}} props
@@ -35,8 +35,9 @@ export default function MenuSearch({ items, meal, excludeIds, loggingId, onLog }
               <span className="dish-name">{item.name}</span>
               <span className="dish-meta">{`${item.station} · ${Math.round(item.nutrition.calories)} cal per serving`}</span>
             </div>
-            <PortionButtons
+            <PortionStepper
               dishName={item.name}
+              nutrition={item.nutrition}
               disabled={item.recipe_id === loggingId}
               onLog={(servings) => onLog(item, servings)}
             />

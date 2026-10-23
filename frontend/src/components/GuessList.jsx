@@ -1,15 +1,16 @@
 // The recognizer's top guesses for a plate photo, as cards: rank, name, a "% match" badge and
-// bar, the macros, and portion buttons. Display only:
-// it gets the guesses and an onLog callback and never calls the API itself.
+// bar, the macros, and a portion stepper that starts at CLIP's suggested portion. Display
+// only: it gets the guesses and an onLog callback and never calls the API itself.
 
-import PortionButtons from './PortionButtons.jsx'
+import PortionStepper from './PortionStepper.jsx'
 
 /**
  * Ranked dish guesses, best first. A plate usually has several dishes, so any number of
  * them can be logged.
  *
  * @param {{guesses: object[], loggingId: string|null, onLog: (guess: object, servings: number) => void}} props
- *   guesses: from recognizePhoto(), each with recipe_id, name, score and nutrition.
+ *   guesses: from recognizePhoto(), each with recipe_id, name, score, suggested_servings
+ *   and nutrition.
  * @returns {JSX.Element}
  * @example <GuessList guesses={result.guesses} loggingId={null} onLog={handleLog} />
  */
@@ -26,7 +27,7 @@ export default function GuessList({ guesses, loggingId, onLog }) {
 
   return (
     <>
-      <p className="guess-intro">Tap a portion for each dish on your plate.</p>
+      <p className="guess-intro">Adjust the portion and tap Log for each dish on your plate.</p>
       <ol className="guess-list">
         {guesses.map((guess, index) => {
           const { nutrition } = guess
@@ -46,8 +47,10 @@ export default function GuessList({ guesses, loggingId, onLog }) {
                 {`${Math.round(nutrition.calories)} cal · ${nutrition.protein_g}g protein · ` +
                   `${nutrition.carbs_g}g carbs · ${nutrition.fat_g}g fat per serving`}
               </span>
-              <PortionButtons
+              <PortionStepper
                 dishName={guess.name}
+                nutrition={nutrition}
+                suggestedServings={guess.suggested_servings}
                 disabled={guess.recipe_id === loggingId}
                 onLog={(servings) => onLog(guess, servings)}
               />
