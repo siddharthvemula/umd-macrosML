@@ -22,7 +22,7 @@ from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
 
 DAY = date(2026, 10, 14)
-LUNCH = ["Spanish Rice", "Guacamole", "Salsa Roja", "Butter", "Sour Cream", "Banana"]
+LUNCH = ["Spanish Rice", "Pork Carnitas", "Corn Tostada", "Charro Beans", "Chipotle Chicken", "Banana"]
 
 
 class FakeScorer:
@@ -45,6 +45,8 @@ def guesses(*names: str) -> list[Guess]:
 
 # On the lunch menu, but UMD published no nutrition for it, so /recognize never guesses it.
 NO_NUTRITION_DISH = "Maryland Crab Soup"
+# On the lunch menu with nutrition, but a condiment, so /recognize never guesses it either.
+CONDIMENT = "Salsa Roja"
 
 
 def make_label(name: str) -> NutritionLabel:
@@ -58,10 +60,11 @@ def make_label(name: str) -> NutritionLabel:
 
 @pytest.fixture
 def conn(tmp_path):
-    """A temporary database with one Yahentamitsi lunch menu: LUNCH (with nutrition) plus
-    NO_NUTRITION_DISH (without)."""
+    """A temporary database with one Yahentamitsi lunch menu: LUNCH and CONDIMENT (with
+    nutrition) plus NO_NUTRITION_DISH (without)."""
     connection = connect(str(tmp_path / "test.db"))
     items = [MenuItem(name=name, recipe_id=f"{i}*1", station="Grill", meal="Lunch") for i, name in enumerate(LUNCH)]
+    items.append(MenuItem(name=CONDIMENT, recipe_id="98*1", station="Grill", meal="Lunch"))
     for item in items:
         save_nutrition(connection, item.recipe_id, make_label(item.name))
     items.append(MenuItem(name=NO_NUTRITION_DISH, recipe_id="99*1", station="Soup", meal="Lunch"))
@@ -121,6 +124,11 @@ def test_load_candidates_leaves_out_dishes_without_nutrition(conn):
     assert NO_NUTRITION_DISH not in load_candidates(conn, DAY, "yahentamitsi", "Lunch")
 
 
+def test_load_candidates_leaves_out_condiments(conn):
+    # Same rule as POST /recognize (ml/candidates.py).
+    assert CONDIMENT not in load_candidates(conn, DAY, "yahentamitsi", "Lunch")
+
+
 def test_load_candidates_with_empty_meal_uses_whole_day(conn):
     # Photos taken with meal "Any" in the app are exported with meal "".
     assert load_candidates(conn, DAY, "yahentamitsi", "") == LUNCH
@@ -131,24 +139,24 @@ def test_load_candidates_returns_empty_for_missing_menu(conn):
 
 
 def test_find_unknown_dishes_flags_typo():
-    assert find_unknown_dishes(["Guacamole", "Guacamolee"], LUNCH) == ["Guacamolee"]
+    assert find_unknown_dishes(["Pork Carnitas", "Pork Carnitass"], LUNCH) == ["Pork Carnitass"]
 
 
 def test_evaluate_end_to_end_with_fake_scorer(conn, photo_dir):
-    photos = [LabeledPhoto("plate.jpg", DAY, "yahentamitsi", "Lunch", ["Guacamole", "Butter", "Not A Dish"])]
-    scorer = FakeScorer({"Guacamole": 10.0, "Spanish Rice": 5.0})
+    photos = [LabeledPhoto("plate.jpg", DAY, "yahentamitsi", "Lunch", ["Pork Carnitas", "Charro Beans", "Not A Dish"])]
+    scorer = FakeScorer({"Pork Carnitas": 10.0, "Spanish Rice": 5.0})
 
     [result] = evaluate(photos, scorer, conn, "a photo of {name}", photo_dir)
 
-    assert result.guesses[0].name == "Guacamole"
-    assert result.true_dishes == ["Guacamole", "Butter"]  # unknown name left out of scoring
-    assert result.top1_hit and result.recall_at_5 == 1.0  # Butter makes the top 5 of 6
+    assert result.guesses[0].name == "Pork Carnitas"
+    assert result.true_dishes == ["Pork Carnitas", "Charro Beans"]  # unknown name left out of scoring
+    assert result.top1_hit and result.recall_at_5 == 1.0  # Charro Beans makes the top 5 of 6
 
 
 def test_evaluate_skips_missing_photo_and_missing_menu(conn, photo_dir):
     photos = [
-        LabeledPhoto("gone.jpg", DAY, "yahentamitsi", "Lunch", ["Guacamole"]),
-        LabeledPhoto("plate.jpg", date(2026, 1, 1), "yahentamitsi", "Lunch", ["Guacamole"]),
+        LabeledPhoto("gone.jpg", DAY, "yahentamitsi", "Lunch", ["Pork Carnitas"]),
+        LabeledPhoto("plate.jpg", date(2026, 1, 1), "yahentamitsi", "Lunch", ["Pork Carnitas"]),
     ]
     assert evaluate(photos, FakeScorer({}), conn, "{name}", photo_dir) == []
 

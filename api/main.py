@@ -21,6 +21,7 @@ from db.database import (
     MealLog, count_photos, delete_meal_log, get_daily_totals, get_meal_logs, get_menu, get_nutrition, log_meal,
     photo_exists, save_photo,
 )
+from ml.candidates import is_candidate
 from ml.photo_store import save_photo_file
 from ml.recognizer import BadPhotoError, ImageTextScorer, load_photo, rank_menu_items
 from scraper.daily_scrape import HALLS
@@ -174,11 +175,11 @@ def recognize_photo(
     except BadPhotoError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
-    # Only dishes with nutrition are candidates: a guess we can't log (POST /meals would
-    # 404) would just waste one of the 5 slots. Case-insensitive so "lunch" works too.
+    # is_candidate drops dishes with no nutrition (can't be logged) and condiments/Salad
+    # Bar toppings (they crowd real dishes out of the top 5). Case-insensitive meal match.
     candidates = [
         row for row in get_menu(conn, today, hall_name)
-        if row.nutrition is not None and (meal is None or row.meal.lower() == meal.lower())
+        if is_candidate(row) and (meal is None or row.meal.lower() == meal.lower())
     ]
     # The recognizer works on names; this maps each guessed name back to its dish.
     rows_by_name = {}

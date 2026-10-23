@@ -17,6 +17,7 @@ from datetime import date
 from pathlib import Path
 
 from db.database import DEFAULT_DB_PATH, connect, get_menu
+from ml.candidates import is_candidate
 from ml.export_training_data import TRAINING_LABELS_PATH
 from ml.photo_store import DEFAULT_PHOTO_DIR
 from ml.recognizer import BadPhotoError, Guess, ImageTextScorer, load_photo, rank_menu_items
@@ -93,8 +94,9 @@ def read_labels(path: Path = LABELS_PATH) -> list[LabeledPhoto]:
 def load_candidates(conn: sqlite3.Connection, day: date, hall: str, meal: str) -> list[str]:
     """Get the dish names on one meal's stored menu: the recognizer's candidate list.
 
-    Like POST /recognize, only dishes with nutrition count: the app never guesses a dish
-    it can't log, so scoring against those would measure a different problem.
+    Uses the same rule as POST /recognize (ml/candidates.is_candidate): dishes with
+    nutrition, minus condiments and the Salad Bar. Scoring against any other list would
+    measure a different problem than the one the app has.
 
     Args:
         day: the menu date.
@@ -111,7 +113,7 @@ def load_candidates(conn: sqlite3.Connection, day: date, hall: str, meal: str) -
     rows = [
         row
         for row in get_menu(conn, day, _stored_hall_name(conn, hall))
-        if row.nutrition is not None and (not meal or row.meal.lower() == meal.lower())
+        if is_candidate(row) and (not meal or row.meal.lower() == meal.lower())
     ]
     return list(dict.fromkeys(row.name for row in rows))
 

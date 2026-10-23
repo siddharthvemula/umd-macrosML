@@ -50,5 +50,5 @@ cloudflared tunnel --url http://127.0.0.1:8080 --protocol http2
    ```
    Record top-1 / top-3 / recall@5 in `DECISIONS.md`.
 3. **Share with the club.** Send them the tunnel URL and collect feedback and usage.
-4. **Filter condiments from the CLIP candidates.** About 250 dishes per meal includes toppings like Butter that crowd out real dishes. Filter them, then re-run step 2 to check that the scores improve.
+4. ~~**Filter condiments from the CLIP candidates.**~~ Done 2026-10-23 (`ml/candidates.py`). Results are in `DECISIONS.md`: no change for the best wording on 3 photos. Re-check once more photos are labeled.
 5. **Real hosting.** Deploy the Docker image (Fly.io is the leading option; see the Deploy section of `DECISIONS.md`), with a mounted volume for `/data` and a scheduled daily scrape.

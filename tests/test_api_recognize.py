@@ -27,16 +27,22 @@ def make_label(name: str, calories: float) -> NutritionLabel:
 
 
 RICE = MenuItem(name="Rice", recipe_id="1*1", station="Grill", meal="Lunch")
-SALAD = MenuItem(name="Salad", recipe_id="2*1", station="Salad Bar", meal="Lunch")
+SALAD = MenuItem(name="Salad", recipe_id="2*1", station="Mezza Sides", meal="Lunch")
 PANCAKES = MenuItem(name="Pancakes", recipe_id="3*1", station="Grill", meal="Breakfast")
 # On the menu, but its label was never scraped.
 MYSTERY = MenuItem(name="Mystery Stew", recipe_id="4*1", station="Soup", meal="Lunch")
+# Have nutrition, but are a condiment and a Salad Bar topping (ml/candidates.py).
+RANCH = MenuItem(name="Ranch Dressing", recipe_id="5*1", station="Grill", meal="Lunch")
+CROUTON = MenuItem(name="Crouton", recipe_id="6*1", station="Salad Bar", meal="Lunch")
 
 
 class FakeScorer:
     """Scores each prompt by a fixed number per dish name, so the ranking is known."""
 
-    SCORES = {"Rice": 3.0, "Pancakes": 2.0, "Salad": 1.0, "Mystery Stew": 9.0}
+    SCORES = {
+        "Rice": 3.0, "Pancakes": 2.0, "Salad": 1.0, "Mystery Stew": 9.0,
+        "Ranch Dressing": 9.0, "Crouton": 9.0,
+    }
 
     def __init__(self) -> None:
         self.seen_prompts: list[str] = []
@@ -57,9 +63,9 @@ def scorer(client):
 def seed_menu(db_path: str) -> None:
     """Save today's Yahentamitsi menu, with nutrition for every dish except MYSTERY."""
     conn = connect(db_path)
-    for item, calories in [(RICE, 200.0), (SALAD, 50.0), (PANCAKES, 300.0)]:
+    for item, calories in [(RICE, 200.0), (SALAD, 50.0), (PANCAKES, 300.0), (RANCH, 70.0), (CROUTON, 30.0)]:
         save_nutrition(conn, item.recipe_id, make_label(item.name, calories))
-    save_menu(conn, TODAY, "Yahentamitsi", [RICE, SALAD, PANCAKES, MYSTERY])
+    save_menu(conn, TODAY, "Yahentamitsi", [RICE, SALAD, PANCAKES, MYSTERY, RANCH, CROUTON])
     conn.close()
 
 
@@ -102,6 +108,14 @@ def test_dishes_without_nutrition_are_not_guessed(client, db_path, scorer):
 
     # Mystery Stew would score highest, but it's never even sent to the model.
     assert not any("Mystery Stew" in prompt for prompt in scorer.seen_prompts)
+
+
+def test_condiments_and_salad_bar_are_not_guessed(client, db_path, scorer):
+    seed_menu(db_path)
+    post_photo(client, png_bytes())
+
+    # Both would score highest, but neither is sent to the model.
+    assert not any("Ranch Dressing" in prompt or "Crouton" in prompt for prompt in scorer.seen_prompts)
 
 
 def test_no_menu_today_gives_empty_guesses(client, scorer):
