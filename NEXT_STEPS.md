@@ -6,7 +6,20 @@
 - 246 tests pass (164 pytest + 82 Vitest).
 - Not hosted yet. To share it, run it in Docker on the Mac and expose it with a temporary Cloudflare tunnel.
 
-## Run it: Docker + Cloudflare tunnel
+## Demo in one command
+
+```bash
+chmod +x scripts/demo.sh   # once
+scripts/demo.sh
+```
+
+- It stops any old `macros` container, rebuilds the image, starts the app, waits for `/api/health`, opens the Cloudflare tunnel, and prints only the public `https://….trycloudflare.com` link. Wait ~10 seconds before opening it; if a device opens it too early, its DNS can cache "not found" for a while.
+- It keeps the Mac awake (`caffeinate`) while it runs. Keep the lid open and the charger plugged in.
+- Control+C stops the tunnel, caffeinate and the container.
+- Scrape menus first (step 2 below). The script doesn't scrape.
+- If something fails, it prints one line saying which step and where its log is.
+
+## Run it by hand: Docker + Cloudflare tunnel
 
 ```bash
 # 1. Build the image (once, and again after code changes)
