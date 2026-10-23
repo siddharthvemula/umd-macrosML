@@ -14,7 +14,8 @@ export const TOAST_MS = 3000
  * @param {number|null} [photoId] - The photo screen passes the current photo's id, so each
  *   log is linked to it as training data. The menu screen leaves it out.
  * @returns {{loggingId: string|null, logResult: {ok: boolean, text: string, id: number}|null,
- *   handleLog: (item: {recipe_id: string, name: string}, servings: number) => Promise<void>}}
+ *   handleLog: (item: {recipe_id: string, name: string, suggested_servings?: number},
+ *     servings: number) => Promise<void>}}
  *   loggingId: recipe_id being logged right now (its buttons are disabled), or null.
  *   logResult: the last log's message, or null. A success clears itself after TOAST_MS.
  *   id is new for every log, so the toast restarts its animation when you log twice in a row.
@@ -47,7 +48,8 @@ export function useMealLogger(onLogged, photoId = null) {
   async function handleLog(item, servings) {
     setLoggingId(item.recipe_id)
     try {
-      const log = await logMeal(item.recipe_id, servings, photoId)
+      // Photo guesses carry CLIP's suggested_servings; menu and search dishes don't (undefined).
+      const log = await logMeal(item.recipe_id, servings, photoId, item.suggested_servings)
       // Use the server's calories (already multiplied by servings): it's what was saved.
       showResult(true, `Logged ${servings}x ${item.name} (${Math.round(log.calories)} cal).`)
       onLogged?.()

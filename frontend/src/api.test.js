@@ -80,6 +80,18 @@ describe('api', () => {
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ recipe_id: '111*1', servings: 1 })
   })
 
+  it('logMeal adds suggested_servings only with a photo', async () => {
+    const fetchMock = fakeFetch(201, { id: 1 })
+
+    await logMeal('111*1', 1.25, 7, 1.5)
+    await logMeal('111*1', 1, null, 1.5)
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(
+      { recipe_id: '111*1', servings: 1.25, photo_id: 7, suggested_servings: 1.5 },
+    )
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ recipe_id: '111*1', servings: 1 })
+  })
+
   it('recognizePhoto POSTs the photo, hall and meal as form data', async () => {
     const fetchMock = fakeFetch(200, { guesses: [] })
     const photo = new File(['fake pixels'], 'plate.jpg', { type: 'image/jpeg' })

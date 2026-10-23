@@ -115,3 +115,32 @@ def test_log_with_unknown_photo_is_404_and_saves_nothing(client, db_path):
 
     assert response.status_code == 404
     assert client.get("/meals").json() == []
+
+
+def test_log_from_a_photo_saves_suggested_and_chosen_servings(client, db_path):
+    seed_banana(db_path)
+    conn = connect(db_path)
+    photo_id = save_photo(conn, TODAY, "Yahentamitsi", "Lunch", "abc.jpg", device_id=DEVICE)
+    conn.close()
+
+    response = client.post(
+        "/meals",
+        json={"recipe_id": BANANA_ID, "servings": 1.25, "photo_id": photo_id, "suggested_servings": 1.5},
+    )
+
+    assert response.status_code == 201
+    assert (response.json()["suggested_servings"], response.json()["servings"]) == (1.5, 1.25)
+    assert client.get("/meals").json()[0]["suggested_servings"] == 1.5
+
+
+def test_menu_log_has_null_suggested_servings(client, db_path):
+    seed_banana(db_path)
+    response = client.post("/meals", json={"recipe_id": BANANA_ID, "servings": 1})
+    assert response.json()["suggested_servings"] is None
+
+
+def test_suggested_servings_without_photo_is_422(client, db_path):
+    # Only photo guesses have a suggestion, so one without a photo is junk.
+    seed_banana(db_path)
+    response = client.post("/meals", json={"recipe_id": BANANA_ID, "servings": 1, "suggested_servings": 1.5})
+    assert response.status_code == 422

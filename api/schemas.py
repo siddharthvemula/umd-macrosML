@@ -4,7 +4,7 @@
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class HallOut(BaseModel):
@@ -104,7 +104,8 @@ class MealLogIn(BaseModel):
     """The request body for logging a meal.
 
     Example JSON: {"recipe_id": "111*1", "servings": 1.5}  (date defaults to today)
-                  {"recipe_id": "111*1", "servings": 1, "photo_id": 7}  (logged from a photo)
+                  {"recipe_id": "111*1", "servings": 1, "photo_id": 7,
+                   "suggested_servings": 1.5}  (logged from a photo guess)
     """
 
     recipe_id: str
@@ -113,6 +114,16 @@ class MealLogIn(BaseModel):
     # alias: the JSON key is "date", but a field named `date` would hide the date type.
     log_date: date | None = Field(None, alias="date")
     photo_id: int | None = None
+    # CLIP's portion guess for this dish (from POST /recognize), saved next to the chosen
+    # servings. Same range as servings, since it's a servings amount too.
+    suggested_servings: float | None = Field(None, gt=0, le=5)
+
+    @model_validator(mode="after")
+    def suggestion_needs_photo(self) -> "MealLogIn":
+        """Reject a suggestion without a photo: only photo guesses have one, so it would be junk data."""
+        if self.suggested_servings is not None and self.photo_id is None:
+            raise ValueError("suggested_servings is only for dishes logged from a photo (needs photo_id)")
+        return self
 
 
 class MealLogOut(BaseModel):
@@ -134,6 +145,7 @@ class MealLogOut(BaseModel):
     fat_g: float
     logged_at: str
     photo_id: int | None
+    suggested_servings: float | None
 
 
 class DailySummaryOut(BaseModel):

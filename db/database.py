@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS meal_logs (
     fat_g     REAL NOT NULL,
     logged_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- UTC
     photo_id  INTEGER,  -- photos.id if logged from a plate photo, else NULL
-    device_id TEXT      -- which phone/browser logged it (random ID, see api/deps.py)
+    device_id TEXT,     -- which phone/browser logged it (random ID, see api/deps.py)
+    suggested_servings REAL  -- CLIP's portion guess when logged from a photo, else NULL
 );
 
 -- One row per plate photo the recognizer saw. The image itself is a file on disk
@@ -137,6 +138,8 @@ class MealLog:
     photo_id: Optional[int] = None
     # The device that logged it; None only for logs made before devices existed.
     device_id: Optional[str] = None
+    # CLIP's portion suggestion for a dish logged from a photo (servings is what was chosen).
+    suggested_servings: Optional[float] = None
 
 
 @dataclass
@@ -210,6 +213,7 @@ ADDED_COLUMNS = [
     ("meal_logs", "photo_id", "INTEGER"),
     ("meal_logs", "device_id", "TEXT"),
     ("photos", "device_id", "TEXT"),
+    ("meal_logs", "suggested_servings", "REAL"),
 ]
 
 
@@ -358,7 +362,7 @@ def _row_to_menu_row(row: sqlite3.Row) -> MenuRow:
 
 def log_meal(
     conn: sqlite3.Connection, day: date, recipe_id: str, servings: float,
-    photo_id: Optional[int] = None, *, device_id: str,
+    photo_id: Optional[int] = None, *, device_id: str, suggested_servings: Optional[float] = None,
 ) -> Optional[MealLog]:
     """Log that a student ate `servings` of a dish on `day`.
 
@@ -367,6 +371,8 @@ def log_meal(
             Check it belongs to this device first with photo_exists.
         device_id: Which device logged it. Keyword-only (after the `*`), so a caller
             can't forget it or mix it up with another string argument.
+        suggested_servings: CLIP's portion guess for a photo guess, or None. Stored next to
+            the chosen `servings`, so the pair shows how far off the suggestion was.
 
     Returns:
         The saved MealLog, or None (and nothing saved) if we have no nutrition for
@@ -383,11 +389,12 @@ def log_meal(
             """
             INSERT INTO meal_logs
                 (date, recipe_id, name, servings, calories, protein_g, carbs_g, fat_g,
-                 photo_id, device_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 photo_id, device_id, suggested_servings)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (day.isoformat(), recipe_id, label.name, servings,
-             label.calories, label.protein_g, label.carbs_g, label.fat_g, photo_id, device_id),
+             label.calories, label.protein_g, label.carbs_g, label.fat_g, photo_id, device_id,
+             suggested_servings),
         )
     # Read the row back so the result includes the id and logged_at SQLite filled in.
     row = conn.execute("SELECT * FROM meal_logs WHERE id = ?", (cursor.lastrowid,)).fetchone()

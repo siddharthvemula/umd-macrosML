@@ -107,14 +107,19 @@ export function getMenu(hall, date) {
  * @param {number} servings - Between 0 (exclusive) and 5, e.g. 1.5.
  * @param {number|null} [photoId] - The plate photo this dish was picked from (from
  *   recognizePhoto()), which turns the log into an ML training label. Leave out for menu logs.
+ * @param {number} [suggestedServings] - CLIP's portion guess for a photo guess, saved next
+ *   to the chosen servings. Only sent with a photoId.
  * @returns {Promise<object>} The new log, with macros already multiplied by servings.
  * @example await logMeal('111*1', 2)  // -> { id: 1, name: 'Banana', servings: 2, calories: 219.6, ... }
  * @example await logMeal('111*1', 1, 7)  // same, plus photo_id: 7
+ * @example await logMeal('111*1', 1.25, 7, 1.5)  // plus suggested_servings: 1.5
  */
-export function logMeal(recipeId, servings, photoId) {
+export function logMeal(recipeId, servings, photoId, suggestedServings) {
   const body = { recipe_id: recipeId, servings }
   // Only send photo_id when there is one, so menu logs look exactly as before.
   if (photoId != null) body.photo_id = photoId
+  // The API rejects a suggestion without a photo, so it only goes along with one.
+  if (photoId != null && suggestedServings != null) body.suggested_servings = suggestedServings
   return request('/meals', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

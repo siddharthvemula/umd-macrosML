@@ -195,6 +195,14 @@ def test_meal_logged_from_photo_keeps_photo_id(conn):
     assert [log.photo_id for log in get_meal_logs(conn, DAY, device_id=DEVICE)] == [photo_id, None]
 
 
+def test_meal_logged_from_photo_keeps_suggested_and_chosen_servings(conn):
+    save_nutrition(conn, BANANA.recipe_id, make_label())
+    photo_id = save_photo(conn, DAY, "Yahentamitsi", None, "abc.jpg", device_id=DEVICE)
+    log = log_meal(conn, DAY, BANANA.recipe_id, 1.25, photo_id=photo_id, device_id=DEVICE, suggested_servings=1.5)
+
+    assert (log.suggested_servings, log.servings) == (1.5, 1.25)
+
+
 def test_old_database_gets_new_columns_added(tmp_path):
     # A meal_logs table as it was before photo_id and device_id existed, with one logged meal.
     path = str(tmp_path / "old.db")
@@ -213,8 +221,8 @@ def test_old_database_gets_new_columns_added(tmp_path):
     old.close()
 
     conn = connect(path)  # should add the missing columns and keep the old row
-    row = conn.execute("SELECT name, photo_id, device_id FROM meal_logs").fetchone()
-    assert tuple(row) == ("Banana", None, None)
+    row = conn.execute("SELECT name, photo_id, device_id, suggested_servings FROM meal_logs").fetchone()
+    assert tuple(row) == ("Banana", None, None, None)
     # A log from before devices existed belongs to nobody, so no device sees it.
     assert get_meal_logs(conn, DAY, device_id=DEVICE) == []
     conn.close()

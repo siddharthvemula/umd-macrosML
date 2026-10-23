@@ -58,7 +58,7 @@ describe('logging a dish', () => {
     await logPortion(bananaButtons, 1.5)
 
     // null photo: a dish picked from the menu isn't a training label.
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, null)
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, null, undefined)
     expect(await screen.findByText('Logged 1.5x Banana (165 cal).')).toBeInTheDocument()
   })
 

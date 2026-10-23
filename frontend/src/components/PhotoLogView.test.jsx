@@ -25,6 +25,11 @@ const SALSA = {
   nutrition: { calories: 10, protein_g: 0, carbs_g: 2, fat_g: 0 },
 }
 
+// Tacos as getMenu() returns it: menu items have no suggested_servings, only guesses do.
+const TACOS_ON_MENU = {
+  recipe_id: '111*1', name: 'Beef Tacos', meal: 'Lunch', station: 'Grill', nutrition: TACOS.nutrition,
+}
+
 const resultOf = (guesses, photoId = 7) => ({
   hall: 'yahentamitsi', date: '2026-10-15', meal: null, photo_id: photoId, guesses,
 })
@@ -117,7 +122,7 @@ describe('PhotoLogView', () => {
     await userEvent.click(within(tacoButtons).getByRole('button', { name: 'Log 1.5x' }))
 
     // 7 is the photo_id from the recognize result: this log becomes a training label.
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 7)
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 7, 1.5)
     expect(await screen.findByText('Logged 1.5x Beef Tacos (376 cal).')).toBeInTheDocument()
     expect(onLogged).toHaveBeenCalledTimes(1)
   })
@@ -135,7 +140,7 @@ describe('PhotoLogView', () => {
 
     await userEvent.click(within(tacos).getByRole('button', { name: 'Fewer servings' }))
     await userEvent.click(within(tacos).getByRole('button', { name: 'Log 1.25x' }))
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.25, 7)
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.25, 7, 1.5)  // chosen 1.25, suggested 1.5
   })
 
   it("links logs to the newest photo's id after a re-analyze", async () => {
@@ -148,13 +153,13 @@ describe('PhotoLogView', () => {
     const tacoButtons = await screen.findByRole('group', { name: 'Log Beef Tacos' })
     await userEvent.click(within(tacoButtons).getByRole('button', { name: 'Log 1.5x' }))
 
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 8)
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 8, 1.5)
   })
 
   it('logs a dish the recognizer missed from the menu search, linked to the photo', async () => {
-    const rice = { ...TACOS, recipe_id: '333*1', name: 'Spanish Rice', meal: 'Lunch', station: 'Grill' }
+    const rice = { ...TACOS_ON_MENU, recipe_id: '333*1', name: 'Spanish Rice' }
     recognizePhoto.mockResolvedValue(resultOf([TACOS], 7))
-    getMenu.mockResolvedValue({ items: [{ ...TACOS, meal: 'Lunch', station: 'Grill' }, rice] })
+    getMenu.mockResolvedValue({ items: [TACOS_ON_MENU, rice] })
     logMeal.mockResolvedValue({ id: 2, calories: 250 })
     await renderAndUpload()
 
@@ -165,12 +170,12 @@ describe('PhotoLogView', () => {
     await userEvent.click(within(riceButtons).getByRole('button', { name: 'Log 1x' }))
 
     expect(getMenu).toHaveBeenCalledWith('yahentamitsi')
-    expect(logMeal).toHaveBeenCalledWith('333*1', 1, 7)
+    expect(logMeal).toHaveBeenCalledWith('333*1', 1, 7, undefined)  // search: no suggestion
   })
 
   it('does not list a dish twice when it is already a guess', async () => {
     recognizePhoto.mockResolvedValue(resultOf([TACOS], 7))
-    getMenu.mockResolvedValue({ items: [{ ...TACOS, meal: 'Lunch', station: 'Grill' }] })
+    getMenu.mockResolvedValue({ items: [TACOS_ON_MENU] })
     await renderAndUpload()
 
     await userEvent.click(await screen.findByRole('button', { name: "Not listed? Search today's menu" }))

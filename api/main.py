@@ -230,6 +230,7 @@ def to_meal_log_out(log: MealLog) -> MealLogOut:
     return MealLogOut(
         id=log.id, date=log.date, recipe_id=log.recipe_id, name=log.name,
         servings=log.servings, logged_at=log.logged_at, photo_id=log.photo_id,
+        suggested_servings=log.suggested_servings,
         calories=round_macro(log.calories * log.servings),
         protein_g=round_macro(log.protein_g * log.servings),
         carbs_g=round_macro(log.carbs_g * log.servings),
@@ -247,13 +248,15 @@ def create_meal_log(
     """Log that the student ate some servings of a dish.
 
     Body:
-        {"recipe_id": "111*1", "servings": 1.5, "date": "2026-10-12", "photo_id": 7}
-        (date and photo_id optional; photo_id comes from POST /recognize)
+        {"recipe_id": "111*1", "servings": 1.5, "date": "2026-10-12", "photo_id": 7,
+         "suggested_servings": 1.5}
+        (date, photo_id and suggested_servings optional; the last two come from POST
+        /recognize, and suggested_servings needs photo_id)
 
     Returns:
         201 with the new log. 404 if we have no nutrition for the dish, or this device
         has no such photo.
-        422 (automatic) if servings isn't in (0, 5].
+        422 (automatic) if servings isn't in (0, 5], or suggested_servings comes without photo_id.
 
     Example:
         POST /meals {"recipe_id": "111*1", "servings": 2}  # -> {"id": 1, "calories": 219.6, ...}
@@ -263,7 +266,7 @@ def create_meal_log(
         raise HTTPException(status_code=404, detail=f"No photo with id {meal.photo_id}.")
     log = log_meal(
         conn, meal.log_date or today, meal.recipe_id, meal.servings, meal.photo_id,
-        device_id=device_id,
+        device_id=device_id, suggested_servings=meal.suggested_servings,
     )
     if log is None:
         raise HTTPException(
