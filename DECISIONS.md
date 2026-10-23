@@ -217,6 +217,9 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **The frontend passes it along without new state:** a guess object already carries `suggested_servings`, so `useMealLogger` sends `item.suggested_servings` (undefined for menu/search items), and `logMeal` only includes it with a `photo_id`. A test fixture caught that copying a guess (`{...TACOS}`) into a menu item also copied its suggestion, so menu fixtures are now built without it.
 - **Checked end to end:** in the real app at 390px, a guess suggested at 1.5x, stepped down and logged at 1.25x, saved `suggested_servings=1.5, servings=1.25` with its `photo_id`.
 
+- **Step 4: checked at 390px with a throwaway headless-Chrome script (DevTools protocol over Node's built-in WebSocket, no install), on a copy of the Docker DB with real CLIP.** Menu, photo guesses and photo search: no overflow, nothing tappable under 44px (− / + are 44px circles on phones, Log fills the rest of the row). The stepper changed live from 1x to 1.25x, and guesses started at their suggestion. The README screenshots still show the old buttons; retake them later.
+- **Tests: 288 (198 pytest + 90 Vitest), up from 246 before today.**
+
 ## README wrap-up (2026-10-19)
 - **README written for recruiters:** screenshots first, then a "How the ML works" section, Docker as the main way to run it (local dev moved into a collapsed section), and the exact test count (246: 164 pytest + 82 Vitest).
 - **Screenshots are 390px phone shots in `docs/screenshots/`,** made with the same throwaway DevTools script against a copy of the DB, with a fake demo device ID. They're scaled to 520px wide to keep the repo small. The photo shot keeps an honest miss (carrots read as "Baked Sweet Potato") rather than a cherry-picked perfect result.

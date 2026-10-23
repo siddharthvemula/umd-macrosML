@@ -3,7 +3,8 @@
 ## Current status (2026-10-19)
 
 - Done: scraper, API, React frontend, zero-shot CLIP photo guesses (ML v1), deploy prep (device IDs, privacy notice, photo metadata stripping, Docker image) and UI polish.
-- 246 tests pass (164 pytest + 82 Vitest).
+- 288 tests pass (198 pytest + 90 Vitest).
+- Added 2026-10-23: condiment filter for CLIP, portion stepper with CLIP portion suggestions, `scripts/demo.sh`. Menus scraped through 2026-10-30.
 - Not hosted yet. To share it, run it in Docker on the Mac and expose it with a temporary Cloudflare tunnel.
 
 ## Demo in one command

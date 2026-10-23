@@ -9,7 +9,7 @@ Students can also **snap a photo of their plate** and get the app's best guesses
 | Daily dashboard | Today's menu | Log from a photo |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/dashboard.png" width="260" alt="Dashboard with calorie, protein, carb and fat rings and today's logged dishes"> | <img src="docs/screenshots/menu.png" width="260" alt="Menu search for 'chicken' showing dishes with macros and portion buttons"> | <img src="docs/screenshots/photo.png" width="260" alt="A plate photo with the top 5 dish guesses from today's menu"> |
-| Macro rings against editable daily goals, plus everything logged today | Every dish grouped by meal and station, with search and one-tap portions | Top 5 guesses from today's menu, each loggable with the same portion buttons |
+| Macro rings against editable daily goals, plus everything logged today | Every dish grouped by meal and station, with search and a portion stepper | Top 5 guesses from today's menu, each loggable with the same portion stepper |
 
 *Phone layout (390px wide). The app also supports desktop and dark mode.*
 
@@ -17,7 +17,7 @@ Students can also **snap a photo of their plate** and get the app's best guesses
 
 - Today's menu for **South Campus** and **Yahentamitsi**, grouped by meal and station, with search
 - Calories, protein, carbs and fat for every dish that has a UMD nutrition label
-- One-tap logging with portions of 0.5x, 1x, 1.5x or 2x
+- A − / + portion stepper (0.5x–3x in quarter steps) with live calories and macros; on a photo it starts at CLIP's small / medium / large portion guess
 - A daily dashboard with macro rings, editable goals, and the dishes you logged (with delete)
 - **Log from a photo:** returns the top 5 guesses from today's menu. If the right dish is missing, you can search the menu for it. Each photo, along with the dishes the student logs from it, is saved as labeled training data.
 - No accounts: each phone gets a random device ID. A privacy notice appears before the camera opens, and photo metadata (such as GPS location) is removed before a photo is saved.
@@ -91,7 +91,7 @@ The Vite dev server forwards `/api/*` to FastAPI, so no CORS setup is needed. Th
 
 ## Tests
 
-**246 tests: 164 backend (pytest) and 82 frontend (Vitest).** All pass.
+**288 tests: 198 backend (pytest) and 90 frontend (Vitest).** All pass.
 
 ```bash
 .venv/bin/python -m pytest          # scraper, database, API, recognizer, evaluation, Docker config
@@ -122,7 +122,7 @@ Every design choice, including what was rejected and why, is recorded in [DECISI
 
 ## Future work
 
-- **Portion estimation:** dining hall plates and bowls are a standard size, so the plate can serve as a scale reference to estimate how much of each dish is on it, instead of the student picking 0.5x–2x.
+- **Portion estimation:** dining hall plates and bowls are a standard size, so the plate can serve as a scale reference to estimate how much of each dish is on it, instead of today's rough small / medium / large guess.
 - **Fine-tuning CLIP:** train on the photos students have labeled by logging, and grow the hand-labeled evaluation set so the gains can be measured.
 - **Cloud hosting:** deploy the Docker image (Fly.io is the leading option), add a scheduled daily scrape, and move to Postgres if the app needs more than one server.
 - **More schools:** the rest of UMD's dining halls first, then other universities. Only the scraper is specific to UMD's site.
