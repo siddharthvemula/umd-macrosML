@@ -6,7 +6,7 @@ import io
 import pytest
 from PIL import Image
 
-from ml.recognizer import BadPhotoError, build_prompts, load_photo, rank_menu_items
+from ml.recognizer import BadPhotoError, build_prompts, load_photo, rank_menu_items, suggest_servings
 
 
 class FakeScorer:
@@ -86,3 +86,30 @@ def test_load_photo_rejects_truncated_image():
     Image.new("RGB", (64, 64), "red").save(buffer, format="JPEG")
     with pytest.raises(BadPhotoError):
         load_photo(buffer.getvalue()[:200])
+
+
+def test_suggest_servings_maps_best_portion_to_servings(image):
+    # Keys are checked in order, so the specific portion prompts come before the plain names.
+    scorer = FakeScorer({
+        "large portion of Rice": 5.0, "small portion of Tacos": 5.0, "Rice": 1.0, "Tacos": 1.0,
+    })
+    assert suggest_servings(image, ["Rice", "Tacos"], scorer) == {"Rice": 1.5, "Tacos": 0.75}
+
+
+def test_suggest_servings_scores_every_dish_in_one_call(image):
+    # One call = CLIP reads the photo once, however many dishes there are.
+    scorer = FakeScorer({"Rice": 1.0, "Tacos": 1.0})
+    suggest_servings(image, ["Rice", "Tacos"], scorer)
+    assert len(scorer.calls) == 1
+    assert "a small portion of Rice on a plate" in scorer.calls[0]
+
+
+def test_suggest_servings_tie_means_normal_serving(image):
+    # Equal scores carry no signal, so suggest 1x rather than small or large.
+    assert suggest_servings(image, ["Rice"], FakeScorer({"Rice": 2.0})) == {"Rice": 1.0}
+
+
+def test_suggest_servings_with_no_dishes_does_not_score(image):
+    scorer = FakeScorer({})
+    assert suggest_servings(image, [], scorer) == {}
+    assert scorer.calls == []

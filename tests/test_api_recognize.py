@@ -45,10 +45,11 @@ class FakeScorer:
     }
 
     def __init__(self) -> None:
+        # Every prompt from every call (ranking, then portion sizes for the guesses).
         self.seen_prompts: list[str] = []
 
     def score(self, image, texts):
-        self.seen_prompts = texts
+        self.seen_prompts += texts
         return [next(s for name, s in self.SCORES.items() if name in text) for text in texts]
 
 
@@ -92,6 +93,8 @@ def test_guesses_are_ranked_with_recipe_ids_and_nutrition(client, db_path, score
     assert [g["name"] for g in body["guesses"]] == ["Rice", "Pancakes", "Salad"]
     assert body["guesses"][0]["recipe_id"] == "1*1"
     assert body["guesses"][0]["nutrition"]["calories"] == 200.0
+    # The fake scores every portion of a dish the same, so the suggestion is the 1x default.
+    assert body["guesses"][0]["suggested_servings"] == 1.0
     assert sum(g["score"] for g in body["guesses"]) == pytest.approx(1, abs=0.01)
 
 

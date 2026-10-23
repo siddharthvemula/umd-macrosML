@@ -23,7 +23,7 @@ from db.database import (
 )
 from ml.candidates import is_candidate
 from ml.photo_store import save_photo_file
-from ml.recognizer import BadPhotoError, ImageTextScorer, load_photo, rank_menu_items
+from ml.recognizer import BadPhotoError, ImageTextScorer, load_photo, rank_menu_items, suggest_servings
 from scraper.daily_scrape import HALLS
 
 app = FastAPI(title="UMD Dining Macro Tracker")
@@ -187,6 +187,8 @@ def recognize_photo(
         rows_by_name.setdefault(row.name, row)
 
     guesses = rank_menu_items(image, list(rows_by_name), scorer)
+    # Only the 5 guesses get a portion size, not all ~130 candidates (3 prompts each).
+    servings = suggest_servings(image, [guess.name for guess in guesses], scorer)
 
     # Save only photos someone could label: with no guesses there's no menu to pick from.
     # The file is written before the database row, so a row never points to a missing file.
@@ -202,6 +204,7 @@ def recognize_photo(
                 recipe_id=rows_by_name[guess.name].recipe_id,
                 name=guess.name,
                 score=round(guess.score, 3),
+                suggested_servings=servings[guess.name],
                 nutrition=NutritionOut.model_validate(rows_by_name[guess.name].nutrition),
             )
             for guess in guesses

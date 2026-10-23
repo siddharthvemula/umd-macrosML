@@ -71,13 +71,16 @@ class MenuOut(BaseModel):
 class GuessOut(BaseModel):
     """One dish the recognizer thinks is on the plate, ready to log with POST /meals.
 
-    Example JSON: {"recipe_id": "111*1", "name": "Banana", "score": 0.42, "nutrition": {...}}
+    Example JSON: {"recipe_id": "111*1", "name": "Banana", "score": 0.42,
+                   "suggested_servings": 1.0, "nutrition": {...}}
     """
 
     recipe_id: str
     name: str
     # Probability (0-1) among all of the meal's candidate dishes, not just these guesses.
     score: float
+    # CLIP's small / medium / large portion guess as servings: 0.75, 1.0 or 1.5.
+    suggested_servings: float
     nutrition: NutritionOut
 
 

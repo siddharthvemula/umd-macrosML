@@ -15,6 +15,11 @@ MODEL_NAME = "openai/clip-vit-base-patch32"
 # "a photo of X" matches how CLIP's training captions were worded; Step 3 compares others.
 DEFAULT_TEMPLATE = "a photo of {name}, a dining hall dish"
 
+# Portion sizes CLIP picks between, and the servings each one suggests. Medium comes first
+# so a tie (no real signal) suggests a normal 1x serving.
+PORTION_SERVINGS = {"medium": 1.0, "small": 0.75, "large": 1.5}
+PORTION_TEMPLATE = "a {size} portion of {name} on a plate"
+
 
 class BadPhotoError(Exception):
     """Raised when uploaded bytes can't be read as an image."""
@@ -155,3 +160,38 @@ def rank_menu_items(
 
     ranked = sorted(zip(names, probabilities), key=lambda pair: pair[1], reverse=True)
     return [Guess(name=name, score=score) for name, score in ranked[:top_k]]
+
+
+def suggest_servings(image: Image.Image, dish_names: list[str], scorer: ImageTextScorer) -> dict[str, float]:
+    """Guess each dish's portion size (small / medium / large) and turn it into servings.
+
+    Zero-shot like rank_menu_items: CLIP compares the photo with "a small portion of X on
+    a plate", "a medium ...", "a large ..." and the best match wins. It's a rough hint
+    the student adjusts, not a measurement (that's ML v2's plate-as-ruler idea).
+
+    Args:
+        image: RGB plate photo.
+        dish_names: the guessed dishes.
+        scorer: ClipScorer in the app, a fake in tests.
+
+    Returns:
+        {dish name: 0.75, 1.0 or 1.5}. {} for no dishes.
+
+    Example:
+        suggest_servings(image, ["Spanish Rice"], ClipScorer())  # -> {"Spanish Rice": 1.5}
+    """
+    names = list(dict.fromkeys(dish_names))
+    if not names:
+        return {}
+    sizes = list(PORTION_SERVINGS)
+    prompts = [PORTION_TEMPLATE.format(size=size, name=name) for name in names for size in sizes]
+    # One call for every dish, so CLIP reads the photo once instead of once per dish.
+    raw_scores = scorer.score(image, prompts)
+
+    suggestions = {}
+    for index, name in enumerate(names):
+        dish_scores = raw_scores[index * len(sizes):(index + 1) * len(sizes)]
+        # max() keeps the first of equal scores, which is "medium" (see PORTION_SERVINGS).
+        best_size = max(zip(sizes, dish_scores), key=lambda pair: pair[1])[0]
+        suggestions[name] = PORTION_SERVINGS[best_size]
+    return suggestions
