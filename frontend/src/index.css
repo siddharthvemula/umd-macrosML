@@ -192,7 +192,7 @@ summary:focus-visible {
 .button,
 .portions button,
 .logged-meal button,
-.photo-notice button {
+.photo-notice-accept {
   min-height: 36px;
   padding: 0 var(--space-3);
   border: 1px solid var(--border);
@@ -213,14 +213,14 @@ summary:focus-visible {
 }
 
 .button--primary,
-.photo-notice button {
+.photo-notice-accept {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
 }
 
 .button--primary:hover:not(:disabled),
-.photo-notice button:hover:not(:disabled) {
+.photo-notice-accept:hover:not(:disabled) {
   background: var(--accent-hover);
   color: var(--on-accent);
 }
@@ -946,6 +946,26 @@ input.menu-filter {
   background: var(--surface-2);
 }
 
+.photo-notice-summary {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* "Read more" and "I understand" each get their own line; min-height keeps the toggle tappable. */
+.photo-notice .link-button,
+.photo-notice-accept {
+  display: block;
+  min-height: 44px;
+}
+
+.photo-notice .link-button {
+  margin-top: 0;
+}
+
+.photo-notice-accept {
+  margin-top: var(--space-2);
+}
+
 .privacy-details ul {
   margin: var(--space-2) 0;
   padding-left: 20px;
@@ -1063,12 +1083,12 @@ input.menu-filter {
   .button,
   .portions button,
   .logged-meal button,
-  .photo-notice button {
+  .photo-notice-accept {
     min-height: 44px;
     font-size: var(--text-base);
   }
 
-  .photo-notice button {
+  .photo-notice-accept {
     width: 100%;
   }
 

@@ -61,6 +61,20 @@ describe('PhotoLogView', () => {
     expect(screen.getByLabelText(/plate photo/i)).toBeInTheDocument()
   })
 
+  it('shows a short notice, with the full text only after "Read more"', async () => {
+    window.localStorage.clear()
+    render(<PhotoLogView hallId="yahentamitsi" />)
+
+    expect(screen.getByText(/Plate photos are saved/)).toBeInTheDocument()
+    expect(screen.queryByText(/Delete your data/)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Read more' }))
+    expect(screen.getByText(/Delete your data/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show less' }))
+    expect(screen.queryByText(/Delete your data/)).not.toBeInTheDocument()
+  })
+
   it('remembers the accepted notice on later visits', async () => {
     window.localStorage.clear()
     const { unmount } = render(<PhotoLogView hallId="yahentamitsi" />)

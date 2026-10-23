@@ -1,8 +1,9 @@
 // The privacy notice. Other students use the app and their plate photos are saved as ML
 // training data, so they're told what is kept, who sees it, and how to get it deleted.
-// PrivacyDetails is the full text (shown in the page footer); PhotoNotice is the short
-// version that the photo screen shows before the first upload, with an "I understand" button.
+// PrivacyDetails is the full text (shown in the page footer); PhotoNotice is the two-line
+// version that the photo screen shows before the first upload, with "Read more" and "I understand".
 
+import { useState } from 'react'
 import { CONTACT_EMAIL, deviceCode } from '../privacy.js'
 
 /**
@@ -45,20 +46,33 @@ export function PrivacyDetails() {
 }
 
 /**
- * The notice shown on the photo screen until the student accepts it.
+ * The notice shown on the photo screen until the student accepts it: two short lines,
+ * with "Read more" opening the full PrivacyDetails text.
  *
  * @param {{onAccept: () => void}} props - Called when "I understand" is tapped.
  * @returns {JSX.Element}
  * @example <PhotoNotice onAccept={() => setAccepted(true)} />
  */
 export function PhotoNotice({ onAccept }) {
+  const [showDetails, setShowDetails] = useState(false)
+
   return (
     <div className="photo-notice" role="region" aria-label="Photo privacy notice">
-      <p>
-        <strong>Before your first photo:</strong> your plate photos are saved to help train the dish recognizer.
+      <p className="photo-notice-summary">
+        Plate photos are saved to improve the dish recognizer. Only the developer sees them.
+        <br />
+        No account or name, location data is removed, and you can ask us to delete it anytime.
       </p>
-      <PrivacyDetails />
-      <button type="button" onClick={onAccept}>
+      <button
+        type="button"
+        className="link-button"
+        aria-expanded={showDetails}
+        onClick={() => setShowDetails((shown) => !shown)}
+      >
+        {showDetails ? 'Show less' : 'Read more'}
+      </button>
+      {showDetails && <PrivacyDetails />}
+      <button type="button" className="photo-notice-accept" onClick={onAccept}>
         I understand
       </button>
     </div>
