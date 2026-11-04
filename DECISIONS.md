@@ -224,3 +224,11 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **README written for recruiters:** screenshots first, then a "How the ML works" section, Docker as the main way to run it (local dev moved into a collapsed section), and the exact test count (246: 164 pytest + 82 Vitest).
 - **Screenshots are 390px phone shots in `docs/screenshots/`,** made with the same throwaway DevTools script against a copy of the DB, with a fake demo device ID. They're scaled to 520px wide to keep the repo small. The photo shot keeps an honest miss (carrots read as "Baked Sweet Potato") rather than a cherry-picked perfect result.
 - **Pre-public check:** nothing secret or personal in the git history. No `.env`, `.db`, or photo files were ever committed, and no keys or tokens. The only email is the Terpmail contact address in `privacy.js`, which is meant to be public. Device IDs in tests are fake.
+
+## Eval set grown to 11 plates (2026-11-04)
+- **8 new Cal AI plate photos added (n=3 → n=11).** Cropped the Cal AI text overlay off the bottom (bottom 26%), renamed to our convention, and set file dates to the real meal dates. Labels in `labels.csv` were matched to the exact menu dish names by Claude Code and confirmed by me.
+- **Menus for Oct 29–Nov 4 scraped for Yahentamitsi only,** so the eval matches the day's menu. All were still on UMD's site, so nothing is marked "menu unavailable".
+- **Photo 09 keeps only the 2 dishes we're sure of** (Parmesan Tomatoes and Button Mushrooms, Fresh Grilled Garlic Bread). The menu has no white pizza, meat-sauce penne or chicken parm, so those go in `notes`. Other plates carry a few best-guess matches, flagged `uncertain` in notes, so the numbers are slightly noisy.
+- **Oct 31 "lunch" is Brunch in the DB** (weekend), so photo 11 is labeled Brunch while its filename says lunch.
+- **Photo 12 (Oct 29, fries and ketchup) dropped.** No crinkle fries on any Oct 29 meal, so the date is probably wrong.
+- **Result, n=11, best wording (`a photo of {name}, a dining hall dish`): top-1 54.5%, top-3 72.7%, recall@5 38.5%.** The other two wordings got top-1 45.5%, top-3 63.6%, recall@5 ~31%. Earlier n=3 run: 66.7 / 66.7 / 32.8, so the old numbers were optimistic. The default wording is still the best.

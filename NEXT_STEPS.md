@@ -5,6 +5,7 @@
 - Done: scraper, API, React frontend, zero-shot CLIP photo guesses (ML v1), deploy prep (device IDs, privacy notice, photo metadata stripping, Docker image) and UI polish.
 - 288 tests pass (198 pytest + 90 Vitest).
 - Added 2026-10-23: condiment filter for CLIP, portion stepper with CLIP portion suggestions, `scripts/demo.sh`. Menus scraped through 2026-10-30.
+- Eval set is 11 labeled plates (2026-11-04): top-1 54.5% / top-3 72.7% / recall@5 38.5%. Menus scraped through 2026-11-04.
 - Not hosted yet. To share it, run it in Docker on the Mac and expose it with a temporary Cloudflare tunnel.
 
 ## Demo in one command

@@ -53,7 +53,7 @@ The recognizer uses **zero-shot CLIP, restricted to the dishes on that day's men
 
 **Why this works without training:** "zero-shot" means CLIP has never seen a UMD dish labeled as such. It only compares the photo against the dish names. Limiting the choices to today's menu is the key idea: it turns "recognize any food in the world" into "pick from today's list", and the guesses automatically follow tomorrow's menu without retraining.
 
-**Measuring it:** a plate usually holds several dishes, so plain accuracy doesn't fit. `ml/evaluate.py` reports **top-1** (is the #1 guess on the plate?), **top-3**, and **recall@5** (the share of the plate's dishes found in the top 5, which matches the UI). On the first small hand-labeled set (3 plates), the chosen prompt scored 0.67 top-1 and 0.33 recall@5, so there's plenty of room to improve. The screenshot above shows a typical miss: the carrots were read as "Baked Sweet Potato", while the red onion (#2) is correct.
+**Measuring it:** a plate usually holds several dishes, so plain accuracy doesn't fit. `ml/evaluate.py` reports **top-1** (is the #1 guess on the plate?), **top-3**, and **recall@5** (the share of the plate's dishes found in the top 5, which matches the UI). On the hand-labeled set (11 plates), the chosen prompt scores 0.55 top-1, 0.73 top-3 and 0.38 recall@5 (it scored 0.67 top-1 on the first 3 plates), so there's plenty of room to improve. The screenshot above shows a typical miss: the carrots were read as "Baked Sweet Potato", while the red onion (#2) is correct.
 
 **The training-data loop:** every photo is saved with the dishes the student actually logged from it. That pairing is a free label. `ml/export_training_data.py` turns these into a CSV for fine-tuning later.
 
