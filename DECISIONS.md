@@ -239,3 +239,21 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **2. Averaging probabilities over several prompt wordings: rejected.** All 3 wordings: top-3 63.6%, recall@5 34.7%. Best two wordings: top-3 up to 81.8% but recall@5 down to 33.6%. Weighting the best wording double: 81.8% / 35.5%. Every ensemble traded recall@5 for top-3, so none passed the rule. (Best wording + ingredients averaged: 63.6% / 40.8%, also a trade.)
 - **3. Only use dishes from the photo's meal: already in place, nothing to change.** `/recognize` and the eval already filter by meal when one is given (e.g. Breakfast 35 candidates vs 155 for the whole day on Nov 3). Dropping the filter gives identical numbers on these 11 plates (the top 5 never changed), so there's no measured gain either way, but it's free and shrinks the list, so it stays. The app's "Any" meal still uses the whole day.
 - **Result: no code change; the baseline stays.** With n=11, one photo is 9 points of top-1, so differences under ~10 points are noise anyway. Next levers are more labeled photos or fine-tuning, not prompt tweaks.
+
+## Segmentation spike (2026-11-10)
+- **Question: does splitting the plate into food regions and running CLIP on each crop raise recall@5?** Throwaway script outside the repo (not committed), nothing added to the app. Success rule: recall@5 +15 points, top-3 not down more than 10, under 10 s per photo.
+- **Picked OWLv2 base (`google/owlv2-base-patch16-ensemble`, ~600 MB, text-prompted detector) over MobileSAM.** It returns "food" boxes directly, so there is no plate/table filtering, and it loads through the `transformers` we already have. MobileSAM (~40 MB) would give many fragments to filter. No new packages: `scipy` and `torchvision` were missing, so I wrote the 960px pad/resize/normalize and NMS by hand instead of installing them.
+- **Setup:** 6 text queries ("a photo of food", "meat", "vegetables", "rice or pasta", "bread", …), score > 0.1, NMS at IoU 0.3, drop boxes over 85% of the image, keep up to 6 crops. CLIP scores each crop against the same candidate list as `ml/evaluate.py`, and crops are merged into one top 5.
+- **Results (n=11, same wording; baseline reproduced exactly):**
+
+| Variant | top-1 | top-3 | recall@5 | Passes? |
+|---|---|---|---|---|
+| Baseline (whole plate) | 54.5% | 72.7% | 38.5% | - |
+| Crops only, max prob per dish | 72.7% | 72.7% | 41.2% | no (+2.7) |
+| Crops + whole plate, max | 72.7% | 81.8% | 41.2% | no (+2.7) |
+| Crops + whole plate, summed | 72.7% | 72.7% | 43.5% | no (+5.0) |
+
+- **Time: 3.9 s per photo on average (max 6.2 s, first photo includes warm-up), ~5.6 crops per plate.** Speed passes; recall@5 does not.
+- **Verdict: don't add it to the app.** Best recall@5 gain is +5 points against a 15-point target. Top-1 rose 54.5→72.7 (2 photos), but that is within noise at n=11 and top-1 wasn't the target.
+- **Why it didn't help (from the saved region images):** OWLv2 boxes overlap heavily and mostly cover big chunks of the plate (a box for most of the plate, a box for "the pasta and the chicken"), rather than one box per dish. Sides like mushrooms, potatoes and fries often got no box of their own. A box that mixes two dishes is no easier for CLIP than the whole photo. The real limit is CLIP telling apart near-identical menu names (several chicken, pizza and bread dishes), not region size.
+- **Not tried:** MobileSAM (better at tight, separate regions but needs an install and fragment merging), more or different text queries, or fine-tuning CLIP on our own labeled photos, which is the better next lever per the Phase B notes.
