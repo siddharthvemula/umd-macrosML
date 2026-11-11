@@ -109,13 +109,17 @@ export function getMenu(hall, date) {
  *   recognizePhoto()), which turns the log into an ML training label. Leave out for menu logs.
  * @param {number} [suggestedServings] - CLIP's portion guess for a photo guess, saved next
  *   to the chosen servings. Only sent with a photoId.
+ * @param {string} [date] - "YYYY-MM-DD" the meal was eaten; leave out for today.
  * @returns {Promise<object>} The new log, with macros already multiplied by servings.
  * @example await logMeal('111*1', 2)  // -> { id: 1, name: 'Banana', servings: 2, calories: 219.6, ... }
  * @example await logMeal('111*1', 1, 7)  // same, plus photo_id: 7
  * @example await logMeal('111*1', 1.25, 7, 1.5)  // plus suggested_servings: 1.5
+ * @example await logMeal('111*1', 1, 7, undefined, '2026-11-03')  // filed under Nov 3
  */
-export function logMeal(recipeId, servings, photoId, suggestedServings) {
+export function logMeal(recipeId, servings, photoId, suggestedServings, date) {
   const body = { recipe_id: recipeId, servings }
+  // Left out for today, so the server's own "today" decides (and menu logs look as before).
+  if (date) body.date = date
   // Only send photo_id when there is one, so menu logs look exactly as before.
   if (photoId != null) body.photo_id = photoId
   // The API rejects a suggestion without a photo, so it only goes along with one.
@@ -159,7 +163,7 @@ export function getSummary(date) {
 }
 
 /**
- * Uploads a plate photo and gets the recognizer's top guesses from today's menu.
+ * Uploads a plate photo and gets the recognizer's top guesses from a day's menu (today by default).
  *
  * Sent as multipart form data (how browsers upload files), not JSON. We don't set
  * Content-Type ourselves: the browser has to add the multipart "boundary" to it.
@@ -167,15 +171,19 @@ export function getSummary(date) {
  * @param {File|Blob} photo - The image the user picked or took.
  * @param {string} hall - Hall ID, e.g. "yahentamitsi".
  * @param {string} [meal] - e.g. "Lunch"; leave out (or "") to consider the whole day's menu.
+ * @param {string} [date] - "YYYY-MM-DD" for a plate from an earlier day; leave out for today.
+ *   The server scrapes that day's menu first if it doesn't have it.
  * @returns {Promise<{hall: string, date: string, meal: string|null, photo_id: number|null,
  *   guesses: object[]}>} Each guess has recipe_id, name, score (0-1) and nutrition.
  *   photo_id is the saved photo (null if there were no guesses); pass it to logMeal().
  * @example await recognizePhoto(file, 'yahentamitsi', 'Lunch')  // -> { guesses: [{ name: 'Banana', score: 0.42, ... }] }
+ * @example await recognizePhoto(file, 'yahentamitsi', 'Dinner', '2026-11-03')  // Nov 3's dinner menu
  */
-export function recognizePhoto(photo, hall, meal) {
+export function recognizePhoto(photo, hall, meal, date) {
   const form = new FormData()
   form.append('photo', photo)
   form.append('hall', hall)
   if (meal) form.append('meal', meal)
+  if (date) form.append('date', date)
   return request('/recognize', { method: 'POST', body: form })
 }

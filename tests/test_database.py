@@ -248,3 +248,12 @@ def test_photos_belong_to_the_device_that_uploaded_them(conn):
     assert count_photos(conn, DAY, device_id=DEVICE) == 1
     assert count_photos(conn, DAY, device_id=OTHER_DEVICE) == 0
     assert count_photos(conn, DAY + timedelta(days=1), device_id=DEVICE) == 0
+
+
+def test_photo_cap_counts_the_upload_day_not_the_menu_day(conn):
+    # A plate from 3 days ago, uploaded on DAY: it belongs to DAY's cap, not to its menu day's.
+    old_plate_day = DAY - timedelta(days=3)
+    save_photo(conn, old_plate_day, "Yahentamitsi", "Lunch", "old.jpg", device_id=DEVICE, uploaded_on=DAY)
+
+    assert count_photos(conn, DAY, device_id=DEVICE) == 1
+    assert count_photos(conn, old_plate_day, device_id=DEVICE) == 0

@@ -1,8 +1,8 @@
 # Shared "dependencies" that FastAPI hands to endpoints: a database connection,
-# today's date, the CLIP photo scorer, the folder for saved plate photos, and which
+# today's date, the CLIP photo scorer, the menu downloader, the folder for saved plate photos, and which
 # device (phone/browser) is asking, so each student only sees their own meals. Endpoints
 # ask for them as parameters instead of creating them, so tests can swap in a test
-# database, a fixed date, a fake scorer, or a temp folder (app.dependency_overrides).
+# database, a fixed date, a fake scorer, a fake downloader, or a temp folder (app.dependency_overrides).
 
 import sqlite3
 import uuid
@@ -17,6 +17,7 @@ from fastapi import Header, HTTPException
 from db.database import DEFAULT_DB_PATH, connect
 from ml.photo_store import DEFAULT_PHOTO_DIR
 from ml.recognizer import ClipScorer, ImageTextScorer
+from scraper.fetcher import Fetcher
 
 # UMD's dining halls run on Eastern time. A server hosted elsewhere (often UTC) would
 # otherwise flip to "tomorrow's" menu at 8pm here.
@@ -63,6 +64,18 @@ def get_scorer() -> ImageTextScorer:
         def recognize_photo(scorer: ImageTextScorer = Depends(get_scorer)): ...
     """
     return ClipScorer()
+
+
+def get_fetcher() -> Fetcher:
+    """Return a polite UMD page downloader, used to scrape a day's menu that is missing.
+
+    A new one per request is fine: it only remembers the time of its own last request,
+    and a request scrapes one hall's day.
+
+    Example:
+        def recognize_photo(fetcher: Fetcher = Depends(get_fetcher)): ...
+    """
+    return Fetcher()
 
 
 def get_photo_dir() -> Path:

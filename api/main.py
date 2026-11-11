@@ -6,13 +6,14 @@
 #   .venv/bin/uvicorn api.main:app --reload
 # then open http://127.0.0.1:8000/docs to try the endpoints in the browser.
 
+import logging
 import sqlite3
 from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 
-from api.deps import get_db, get_device_id, get_photo_dir, get_scorer, get_today
+from api.deps import get_db, get_device_id, get_fetcher, get_photo_dir, get_scorer, get_today
 from api.schemas import (
     DailySummaryOut, GuessOut, HallOut, MealLogIn, MealLogOut, MenuItemOut, MenuOut,
     NutritionOut, RecognizeOut,
@@ -24,7 +25,10 @@ from db.database import (
 from ml.candidates import is_candidate
 from ml.photo_store import save_photo_file
 from ml.recognizer import BadPhotoError, ImageTextScorer, load_photo, rank_menu_items, suggest_servings
-from scraper.daily_scrape import HALLS
+from scraper.daily_scrape import HALLS, ScrapeError, scrape_hall
+from scraper.fetcher import Fetcher
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="UMD Dining Macro Tracker")
 
@@ -84,6 +88,26 @@ def get_hall_name(hall: str) -> str:
     return hall_name
 
 
+def ensure_menu_stored(conn: sqlite3.Connection, fetcher: Fetcher, hall_name: str, day: date) -> None:
+    """Scrape one hall's menu for a day if we have nothing stored for it.
+
+    Lets a student photograph a plate from a day the daily scrape never ran. A failed
+    scrape isn't an error here: the caller sees an empty menu and answers "no guesses",
+    the same as a day UMD has no menu for. Nothing is saved on failure (scrape_hall
+    checks first), so the next photo tries again.
+
+    Example:
+        ensure_menu_stored(conn, Fetcher(), "Yahentamitsi", date(2026, 11, 3))
+        # menu_entries now has that day's Yahentamitsi dishes, and any new nutrition labels
+    """
+    if get_menu(conn, day, hall_name):
+        return
+    try:
+        scrape_hall(conn, fetcher, hall_name, HALLS[hall_name], day)
+    except ScrapeError as error:
+        logger.warning("Auto-scrape failed: %s", error)
+
+
 @app.get("/menu")
 def read_menu(
     hall: str,
@@ -133,33 +157,43 @@ def recognize_photo(
     photo: UploadFile = File(...),
     hall: str = Form(...),
     meal: str | None = Form(None),
+    # Which day's menu the plate came from (YYYY-MM-DD). Named plate_date so it doesn't hide the date type.
+    plate_date: date | None = Form(None, alias="date"),
     conn: sqlite3.Connection = Depends(get_db),
     today: date = Depends(get_today),
     scorer: ImageTextScorer = Depends(get_scorer),
+    fetcher: Fetcher = Depends(get_fetcher),
     photo_dir: Path = Depends(get_photo_dir),
     device_id: str = Depends(get_device_id),
 ) -> RecognizeOut:
-    """Guess which of today's dishes are on a plate photo.
+    """Guess which of a day's dishes are on a plate photo (today's, unless a date is given).
 
     Form fields (multipart upload, like a file input in an HTML form):
         photo: the image file (JPEG/PNG/...).
         hall: hall ID from /halls, e.g. "yahentamitsi".
-        meal: optional, e.g. "Lunch". Without it, every dish served today is a candidate.
+        meal: optional, e.g. "Lunch". Without it, every dish served that day is a candidate.
+        date: optional, e.g. "2026-11-03", for a plate eaten on an earlier day. Defaults to
+            today. If we have no menu stored for that hall and day, it is scraped first
+            (a few seconds, longer if dishes are new).
 
     Returns:
         Top 5 guesses, best first, each with nutrition so it can be logged right away,
         plus photo_id: the photo is saved, and POST /meals with that photo_id links a
         logged dish to it as a training label.
-        guesses is [] (and photo_id null, nothing saved) if no menu is stored for today
-        (or for that meal).
-        400 for a file that isn't an image (or no X-Device-Id), 413 if it's over 10 MB,
-        404 for an unknown hall, 429 if this device already saved 20 photos today.
+        guesses is [] (and photo_id null, nothing saved) if no menu exists for that day
+        (or for that meal). A saved photo is filed under that day, not the upload day.
+        400 for a file that isn't an image (or no X-Device-Id) or a date in the future,
+        413 if it's over 10 MB, 404 for an unknown hall,
+        429 if this device already uploaded 20 photos today.
 
     Example:
         POST /recognize  photo=plate.jpg, hall=yahentamitsi, meal=Lunch
         # -> {"guesses": [{"recipe_id": "...", "name": "Fried Chicken Thigh", "score": 0.31, ...}]}
     """
     hall_name = get_hall_name(hall)
+    day = plate_date or today
+    if day > today:
+        raise HTTPException(status_code=400, detail="Pick today or an earlier day: that menu hasn't been served yet.")
     # Checked before running CLIP, so a device over the cap costs the server almost nothing.
     if count_photos(conn, today, device_id=device_id) >= MAX_PHOTOS_PER_DAY:
         raise HTTPException(
@@ -175,10 +209,13 @@ def recognize_photo(
     except BadPhotoError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
+    # After the photo is known to be valid, so a junk upload can't trigger a scrape of UMD's site.
+    ensure_menu_stored(conn, fetcher, hall_name, day)
+
     # is_candidate drops dishes with no nutrition (can't be logged) and condiments/Salad
     # Bar toppings (they crowd real dishes out of the top 5). Case-insensitive meal match.
     candidates = [
-        row for row in get_menu(conn, today, hall_name)
+        row for row in get_menu(conn, day, hall_name)
         if is_candidate(row) and (meal is None or row.meal.lower() == meal.lower())
     ]
     # The recognizer works on names; this maps each guessed name back to its dish.
@@ -195,10 +232,11 @@ def recognize_photo(
     photo_id = None
     if guesses:
         filename = save_photo_file(photo_dir, data)
-        photo_id = save_photo(conn, today, hall_name, meal, filename, device_id=device_id)
+        # Filed under the plate's day (that's the menu it was matched to); the cap counts the upload day.
+        photo_id = save_photo(conn, day, hall_name, meal, filename, device_id=device_id, uploaded_on=today)
 
     return RecognizeOut(
-        hall=hall, date=today, meal=meal, photo_id=photo_id,
+        hall=hall, date=day, meal=meal, photo_id=photo_id,
         guesses=[
             GuessOut(
                 recipe_id=rows_by_name[guess.name].recipe_id,

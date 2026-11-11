@@ -149,7 +149,8 @@ body {
 /* Form controls: one look for every select and text input. */
 select,
 input[type='search'],
-input[type='number'] {
+input[type='number'],
+input[type='date'] {
   min-height: 40px;
   padding: 0 var(--space-3);
   border: 1px solid var(--border);
@@ -735,6 +736,13 @@ input.menu-filter {
 }
 
 /* "Log from a photo": a big upload button, then the photo beside the guess cards. */
+.photo-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .meal-picker {
   display: flex;
   align-items: center;
@@ -1165,7 +1173,8 @@ input.menu-filter {
 
   select,
   input[type='search'],
-  input[type='number'] {
+  input[type='number'],
+  input[type='date'] {
     min-height: 44px;
   }
 

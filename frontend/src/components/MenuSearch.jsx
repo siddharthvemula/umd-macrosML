@@ -8,23 +8,24 @@ import { searchMenu } from '../menu.js'
 import PortionStepper from './PortionStepper.jsx'
 
 /**
- * A search box over today's menu, with a portion stepper on each match.
+ * A search box over a day's menu, with a portion stepper on each match.
  *
  * @param {{items: object[], meal: string, excludeIds: string[], loggingId: string|null,
- *   onLog: (item: object, servings: number) => void}} props
- *   items: today's menu from getMenu(). meal: "" for the whole day.
+ *   onLog: (item: object, servings: number) => void, dayLabel?: string}} props
+ *   items: the day's menu from getMenu(). meal: "" for the whole day.
+ *   dayLabel: names the menu in the label, "today's menu" (default) or "that day's menu".
  *   excludeIds: recipe IDs already shown as guesses, so they aren't listed twice.
  * @returns {JSX.Element}
  * @example <MenuSearch items={menu.items} meal="Lunch" excludeIds={['111*1']} loggingId={null} onLog={handleLog} />
  */
-export default function MenuSearch({ items, meal, excludeIds, loggingId, onLog }) {
+export default function MenuSearch({ items, meal, excludeIds, loggingId, onLog, dayLabel = "today's menu" }) {
   const [query, setQuery] = useState('')
   const matches = searchMenu(items, query, { meal, excludeIds })
 
   return (
     <div className="menu-search">
       <label>
-        Search today's menu{' '}
+        Search {dayLabel}{' '}
         <input type="search" value={query} placeholder="e.g. rice" onChange={(event) => setQuery(event.target.value)} />
       </label>
       {query.trim() && matches.length === 0 && <p className="notice">No dishes match "{query.trim()}".</p>}

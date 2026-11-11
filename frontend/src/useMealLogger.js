@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { logMeal } from './api.js'
+import { formatDay } from './dates.js'
 
 // How long the "Logged ..." toast stays up. Errors stay until the next log, since they need reading.
 export const TOAST_MS = 3000
@@ -13,6 +14,8 @@ export const TOAST_MS = 3000
  * @param {() => void} [onLogged] - Called after each successful log, so App can reload the dashboard.
  * @param {number|null} [photoId] - The photo screen passes the current photo's id, so each
  *   log is linked to it as training data. The menu screen leaves it out.
+ * @param {string} [logDate] - "YYYY-MM-DD" to file the meal under (the photo screen's date
+ *   picker, for a plate from a past day). Leave out for today.
  * @returns {{loggingId: string|null, logResult: {ok: boolean, text: string, id: number}|null,
  *   handleLog: (item: {recipe_id: string, name: string, suggested_servings?: number},
  *     servings: number) => Promise<void>}}
@@ -23,7 +26,7 @@ export const TOAST_MS = 3000
  *   const { loggingId, logResult, handleLog } = useMealLogger(onLogged)
  *   handleLog(banana, 2)  // banner: "Logged 2x Banana (220 cal)."
  */
-export function useMealLogger(onLogged, photoId = null) {
+export function useMealLogger(onLogged, photoId = null, logDate) {
   const [loggingId, setLoggingId] = useState(null)
   const [logResult, setLogResult] = useState(null)
   // useRef keeps the timer between renders without causing a re-render when it changes.
@@ -49,9 +52,11 @@ export function useMealLogger(onLogged, photoId = null) {
     setLoggingId(item.recipe_id)
     try {
       // Photo guesses carry CLIP's suggested_servings; menu and search dishes don't (undefined).
-      const log = await logMeal(item.recipe_id, servings, photoId, item.suggested_servings)
+      const log = await logMeal(item.recipe_id, servings, photoId, item.suggested_servings, logDate)
       // Use the server's calories (already multiplied by servings): it's what was saved.
-      showResult(true, `Logged ${servings}x ${item.name} (${Math.round(log.calories)} cal).`)
+      // A past day is named, since it won't show up in today's dashboard.
+      const onDay = logDate ? ` on ${formatDay(logDate)}` : ''
+      showResult(true, `Logged ${servings}x ${item.name} (${Math.round(log.calories)} cal)${onDay}.`)
       onLogged?.()
     } catch (err) {
       showResult(false, `Couldn't log ${item.name}: ${err.message}`)

@@ -1,20 +1,36 @@
 # Shared pytest fixtures for the API tests (pytest loads this file automatically).
 # `client` is a TestClient whose requests use a temporary database file, a temporary
-# photo folder, a fixed "today" and one device's X-Device-Id header, swapped in through FastAPI's dependency_overrides,
-# so API tests never touch the real database, real training photos, or the real clock.
+# photo folder, a fixed "today", a downloader that always fails (so no test reaches UMD's site)
+# and one device's X-Device-Id header, swapped in through FastAPI's dependency_overrides,
+# so API tests never touch the real database, real training photos, the real clock or the network.
 
 from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
 
-from api.deps import get_db, get_photo_dir, get_today
+from api.deps import get_db, get_fetcher, get_photo_dir, get_today
 from api.main import app
 from db.database import connect
+from scraper.fetcher import FetchError
 
 TODAY = date(2026, 10, 12)
 # The device every `client` request comes from (sent as the X-Device-Id header).
 DEVICE = "11111111-1111-4111-8111-111111111111"
+
+
+class OfflineFetcher:
+    """A downloader that always fails like a site that's down, and records what it was asked for."""
+
+    def __init__(self) -> None:
+        self.menu_requests: list[tuple[int, date]] = []
+
+    def fetch_menu_html(self, location_num: int, day: date) -> str:
+        self.menu_requests.append((location_num, day))
+        raise FetchError("offline in tests")
+
+    def fetch_label_html(self, recipe_id: str) -> str:
+        raise FetchError("offline in tests")
 
 
 @pytest.fixture
@@ -47,6 +63,7 @@ def client(db_path, photo_dir):
     app.dependency_overrides[get_db] = get_test_db
     app.dependency_overrides[get_today] = lambda: TODAY
     app.dependency_overrides[get_photo_dir] = lambda: photo_dir
+    app.dependency_overrides[get_fetcher] = lambda: OfflineFetcher()
     # headers= is sent with every request, like the real frontend does.
     yield TestClient(app, headers={"X-Device-Id": DEVICE})
     app.dependency_overrides.clear()  # don't leak fakes into other test files

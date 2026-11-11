@@ -108,6 +108,26 @@ describe('api', () => {
     expect(options.body.get('meal')).toBe('Lunch')
   })
 
+  it('logMeal adds the date only when one is given', async () => {
+    const fetchMock = fakeFetch(201, { id: 1 })
+    await logMeal('111*1', 1, 7, undefined, '2026-11-03')
+    await logMeal('111*1', 1)
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(
+      { recipe_id: '111*1', servings: 1, photo_id: 7, date: '2026-11-03' },
+    )
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ recipe_id: '111*1', servings: 1 })
+  })
+
+  it('recognizePhoto sends the date only when one is given', async () => {
+    const fetchMock = fakeFetch(200, { guesses: [] })
+    await recognizePhoto(new File(['x'], 'plate.jpg'), 'yahentamitsi', 'Dinner', '2026-11-03')
+    await recognizePhoto(new File(['x'], 'plate.jpg'), 'yahentamitsi', 'Dinner')
+
+    expect(fetchMock.mock.calls[0][1].body.get('date')).toBe('2026-11-03')
+    expect(fetchMock.mock.calls[1][1].body.has('date')).toBe(false)
+  })
+
   it('recognizePhoto leaves out an empty meal', async () => {
     const fetchMock = fakeFetch(200, { guesses: [] })
 

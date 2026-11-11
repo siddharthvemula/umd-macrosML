@@ -19,7 +19,7 @@ Students can also **snap a photo of their plate** and get the app's best guesses
 - Calories, protein, carbs and fat for every dish that has a UMD nutrition label
 - A − / + portion stepper (0.5x–3x in quarter steps) with live calories and macros; on a photo it starts at CLIP's small / medium / large portion guess
 - A daily dashboard with macro rings, editable goals, and the dishes you logged (with delete)
-- **Log from a photo:** returns the top 5 guesses from today's menu. If the right dish is missing, you can search the menu for it. Each photo, along with the dishes the student logs from it, is saved as labeled training data.
+- **Log from a photo:** returns the top 5 guesses from today's menu, or from a past day's menu if you pick a date (it's fetched from UMD automatically if we don't have it). If the right dish is missing, you can search the menu for it. Each photo, along with the dishes the student logs from it, is saved as labeled training data.
 - No accounts: each phone gets a random device ID. A privacy notice appears before the camera opens, and photo metadata (such as GPS location) is removed before a photo is saved.
 
 ## Tech stack
@@ -91,7 +91,7 @@ The Vite dev server forwards `/api/*` to FastAPI, so no CORS setup is needed. Th
 
 ## Tests
 
-**288 tests: 198 backend (pytest) and 90 frontend (Vitest).** All pass.
+**310 tests: 209 backend (pytest) and 101 frontend (Vitest).** All pass.
 
 ```bash
 .venv/bin/python -m pytest          # scraper, database, API, recognizer, evaluation, Docker config

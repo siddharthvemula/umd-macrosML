@@ -1,12 +1,15 @@
 // The "log from a photo" screen: one big "Snap a plate photo" button, then the photo next to
-// the recognizer's top guesses from today's menu (as cards), logged with portion buttons.
-// A dish the recognizer missed can be found with "not listed? search today's menu".
+// the recognizer's top guesses from that day's menu (as cards), logged with portion buttons.
+// A date picker (default today) lets a student upload a plate from a past day: the guesses
+// come from that day's menu (the server scrapes it if missing) and the meal is logged on that day.
+// A dish the recognizer missed can be found with "not listed? search the menu".
 // Every log here carries the photo's id, so it becomes a training label.
 // Photos are saved, so the camera only appears after the privacy notice is accepted.
 // It owns the state and talks to the API; GuessList and MenuSearch just draw.
 
 import { useEffect, useState } from 'react'
 import { getMenu, recognizePhoto } from '../api.js'
+import { todayOnCampus } from '../dates.js'
 import { acceptPhotoNotice, hasAcceptedPhotoNotice } from '../privacy.js'
 import { useMealLogger } from '../useMealLogger.js'
 import GuessList from './GuessList.jsx'
@@ -32,6 +35,10 @@ export default function PhotoLogView({ hallId, onLogged }) {
   // Read once when the screen appears (a function, so localStorage isn't read on every render).
   const [noticeAccepted, setNoticeAccepted] = useState(hasAcceptedPhotoNotice)
   const [meal, setMeal] = useState('')
+  // The day the plate was eaten ("YYYY-MM-DD"). Starts as today; max stops future days.
+  // Read once; if the page stays open past midnight, the server's own "today" still rules.
+  const [today] = useState(todayOnCampus)
+  const [plateDate, setPlateDate] = useState(today)
   const [photo, setPhoto] = useState(null)
   // A temporary blob: URL so <img> can show the photo before (and without) uploading it.
   const [previewUrl, setPreviewUrl] = useState(null)
@@ -45,7 +52,10 @@ export default function PhotoLogView({ hallId, onLogged }) {
   const [menuItems, setMenuItems] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [menuError, setMenuError] = useState(null)
-  const { loggingId, logResult, handleLog } = useMealLogger(onLogged, photoId)
+  // undefined for today: the server then uses its own clock, as before this picker existed.
+  const dateParam = plateDate === today ? undefined : plateDate
+  const { loggingId, logResult, handleLog } = useMealLogger(onLogged, photoId, dateParam)
+  const dayLabel = dateParam ? 'that day\'s menu' : 'today\'s menu'
 
   // Blob URLs hold the photo in memory until revoked. Free the old one when a new photo
   // replaces it, and the last one when the screen goes away.
@@ -60,14 +70,15 @@ export default function PhotoLogView({ hallId, onLogged }) {
    *
    * @param {File} photoFile
    * @param {string} mealName - e.g. "Lunch", or "" for any meal.
+   * @param {string|undefined} dateValue - "YYYY-MM-DD" of a past day, or undefined for today.
    */
-  async function analyze(photoFile, mealName) {
+  async function analyze(photoFile, mealName, dateValue) {
     setAnalyzing(true)
     setError(null)
     setGuesses(null)
     setPhotoId(null)
     try {
-      const result = await recognizePhoto(photoFile, hallId, mealName)
+      const result = await recognizePhoto(photoFile, hallId, mealName, dateValue)
       setGuesses(result.guesses)
       setPhotoId(result.photo_id)
     } catch (err) {
@@ -78,14 +89,14 @@ export default function PhotoLogView({ hallId, onLogged }) {
   }
 
   /**
-   * Opens the "search today's menu" box, loading the menu the first time.
+   * Opens the "search the menu" box, loading the day's menu the first time.
    */
   async function openSearch() {
     setSearchOpen(true)
     if (menuItems) return
     setMenuError(null)
     try {
-      const menu = await getMenu(hallId)
+      const menu = await getMenu(hallId, dateParam)
       setMenuItems(menu.items)
     } catch (err) {
       setMenuError(err.message)
@@ -101,7 +112,7 @@ export default function PhotoLogView({ hallId, onLogged }) {
     if (!file) return
     setPhoto(file)
     setPreviewUrl(URL.createObjectURL(file))
-    analyze(file, meal)
+    analyze(file, meal, dateParam)
   }
 
   /**
@@ -111,7 +122,22 @@ export default function PhotoLogView({ hallId, onLogged }) {
    */
   function selectMeal(newMeal) {
     setMeal(newMeal)
-    if (photo) analyze(photo, newMeal)
+    if (photo) analyze(photo, newMeal, dateParam)
+  }
+
+  /**
+   * Changes the day the plate was eaten, and re-analyzes the current photo against that day's menu.
+   *
+   * @param {string} newDate - "YYYY-MM-DD", or "" if the user cleared the field (treated as today).
+   */
+  function selectDate(newDate) {
+    // A typed or pasted future date can get past the input's max in some browsers.
+    const chosen = newDate && newDate <= today ? newDate : today
+    setPlateDate(chosen)
+    // The cached menu and the open search belong to the old day.
+    setMenuItems(null)
+    setSearchOpen(false)
+    if (photo) analyze(photo, meal, chosen === today ? undefined : chosen)
   }
 
   /**
@@ -161,18 +187,30 @@ export default function PhotoLogView({ hallId, onLogged }) {
     <section className="photo-log card">
       <div className="card-header">
         <h2 className="card-title">Log from a photo</h2>
-        {/* Both inputs are disabled while analyzing, so two requests can't race each other. */}
-        <label className="meal-picker">
-          Meal{' '}
-          <select value={meal} disabled={analyzing} onChange={(event) => selectMeal(event.target.value)}>
-            <option value="">Any</option>
-            {MEALS.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* All inputs are disabled while analyzing, so two requests can't race each other. */}
+        <div className="photo-pickers">
+          <label className="meal-picker">
+            Day{' '}
+            <input
+              type="date"
+              value={plateDate}
+              max={today}
+              disabled={analyzing}
+              onChange={(event) => selectDate(event.target.value)}
+            />
+          </label>
+          <label className="meal-picker">
+            Meal{' '}
+            <select value={meal} disabled={analyzing} onChange={(event) => selectMeal(event.target.value)}>
+              <option value="">Any</option>
+              {MEALS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       {/* Before a photo: one big button, the obvious first step on this screen. */}
@@ -185,7 +223,7 @@ export default function PhotoLogView({ hallId, onLogged }) {
               <span className="photo-upload-title">Snap a plate photo</span>
             </>,
           )}
-          <p className="photo-upload-hint">We'll match it against today's menu at this hall.</p>
+          <p className="photo-upload-hint">We'll match it against {dayLabel} at this hall.</p>
         </>
       )}
 
@@ -208,7 +246,10 @@ export default function PhotoLogView({ hallId, onLogged }) {
           <div className="photo-guesses">
             {analyzing && (
               <div aria-busy="true">
-                <p className="notice">The first photo can take about 10 seconds while the model loads.</p>
+                <p className="notice">
+                  The first photo can take about 10 seconds while the model loads.
+                  {dateParam && " A day we haven't saved yet is fetched from UMD first, which can take longer."}
+                </p>
                 <RowsSkeleton count={3} />
               </div>
             )}
@@ -219,13 +260,13 @@ export default function PhotoLogView({ hallId, onLogged }) {
             {/* Only with a saved photo: a correction is only useful linked to the photo it fixes. */}
             {guesses && photoId != null && !searchOpen && (
               <button type="button" className="button not-listed" onClick={openSearch}>
-                Not listed? Search today's menu
+                Not listed? Search {dayLabel}
               </button>
             )}
             {guesses && photoId != null && searchOpen && (
               <>
                 {menuError && <p className="notice notice--error">{menuError}</p>}
-                {!menuItems && !menuError && <p className="notice">Loading today's menu…</p>}
+                {!menuItems && !menuError && <p className="notice">Loading {dayLabel}…</p>}
                 {menuItems && (
                   <MenuSearch
                     items={menuItems}
@@ -233,6 +274,7 @@ export default function PhotoLogView({ hallId, onLogged }) {
                     excludeIds={guesses.map((guess) => guess.recipe_id)}
                     loggingId={loggingId}
                     onLog={handleLog}
+                    dayLabel={dayLabel}
                   />
                 )}
               </>

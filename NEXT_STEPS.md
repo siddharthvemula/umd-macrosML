@@ -3,10 +3,11 @@
 ## Current status (2026-10-19)
 
 - Done: scraper, API, React frontend, zero-shot CLIP photo guesses (ML v1), deploy prep (device IDs, privacy notice, photo metadata stripping, Docker image) and UI polish.
-- 288 tests pass (198 pytest + 90 Vitest).
+- 310 tests pass (209 pytest + 101 Vitest).
 - Added 2026-10-23: condiment filter for CLIP, portion stepper with CLIP portion suggestions, `scripts/demo.sh`. Menus scraped through 2026-10-30.
 - Eval set is 11 labeled plates (2026-11-04): top-1 54.5% / top-3 72.7% / recall@5 38.5%. Menus scraped through 2026-11-04.
 - Phase B (2026-11-10): tried ingredients in the prompt, prompt-wording ensembles and meal-only candidates; none beat the baseline, so no code changed (see DECISIONS.md).
+- Photo screen has a Day picker (2026-11-10): upload a plate from a past day; its menu is scraped automatically if missing, and the meal and training photo are saved under that day.
 - Not hosted yet. To share it, run it in Docker on the Mac and expose it with a temporary Cloudflare tunnel.
 
 ## Demo in one command

@@ -52,7 +52,7 @@ describe('App', () => {
     expect(screen.queryByText('Banana')).not.toBeInTheDocument()
 
     await userEvent.upload(screen.getByLabelText(/plate photo/i), new File(['x'], 'plate.jpg', { type: 'image/jpeg' }))
-    expect(recognizePhoto).toHaveBeenCalledWith(expect.any(File), 'yahentamitsi', '')
+    expect(recognizePhoto).toHaveBeenCalledWith(expect.any(File), 'yahentamitsi', '', undefined)
   })
 
   it('has a privacy section in the footer with this device\'s code', async () => {

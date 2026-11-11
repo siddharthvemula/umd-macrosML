@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS photos (
     meal        TEXT,           -- e.g. 'Lunch'; NULL if the whole day's menu was used
     filename    TEXT NOT NULL UNIQUE,  -- e.g. '3f2a...c1.jpg', inside the photo folder
     uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- UTC
-    device_id   TEXT  -- which phone/browser uploaded it
+    device_id   TEXT,  -- which phone/browser uploaded it
+    uploaded_on TEXT   -- campus date the upload happened (date is the menu's day, which can be in the past)
 );
 """
 
@@ -214,6 +215,7 @@ ADDED_COLUMNS = [
     ("meal_logs", "device_id", "TEXT"),
     ("photos", "device_id", "TEXT"),
     ("meal_logs", "suggested_servings", "REAL"),
+    ("photos", "uploaded_on", "TEXT"),
 ]
 
 
@@ -459,16 +461,19 @@ def get_daily_totals(conn: sqlite3.Connection, day: date, *, device_id: str) -> 
 
 def save_photo(
     conn: sqlite3.Connection, day: date, hall: str, meal: Optional[str], filename: str,
-    *, device_id: str,
+    *, device_id: str, uploaded_on: Optional[date] = None,
 ) -> int:
     """Record a plate photo that was saved to disk as `filename`.
 
     Args:
-        day: The campus date whose menu the photo was matched against.
+        day: The campus date whose menu the photo was matched against (the day the plate
+            was eaten, which can be in the past).
         hall: Hall display name, e.g. "Yahentamitsi".
         meal: e.g. "Lunch", or None if the whole day's menu was used.
         filename: The file's name inside the photo folder.
         device_id: Which device uploaded it (for the daily cap and deletion requests).
+        uploaded_on: The campus date of the upload, which the daily cap counts. Defaults
+            to `day`, which is right when you photograph a plate the same day.
 
     Returns:
         The new photo's id, which meal logs use as photo_id.
@@ -479,8 +484,9 @@ def save_photo(
     """
     with conn:
         cursor = conn.execute(
-            "INSERT INTO photos (date, hall, meal, filename, device_id) VALUES (?, ?, ?, ?, ?)",
-            (day.isoformat(), hall, meal, filename, device_id),
+            "INSERT INTO photos (date, hall, meal, filename, device_id, uploaded_on)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (day.isoformat(), hall, meal, filename, device_id, (uploaded_on or day).isoformat()),
         )
     return cursor.lastrowid
 
@@ -500,13 +506,16 @@ def photo_exists(conn: sqlite3.Connection, photo_id: int, *, device_id: str) -> 
 
 
 def count_photos(conn: sqlite3.Connection, day: date, *, device_id: str) -> int:
-    """Count the photos one device saved on a campus day (for the daily upload cap).
+    """Count the photos one device uploaded on a campus day (for the daily upload cap).
+
+    Counts by upload day, not menu day, so uploading photos of old plates can't get around
+    the cap. Photos saved before `uploaded_on` existed fall back to their menu day.
 
     Example:
         count_photos(conn, date(2026, 10, 15), device_id="d1")  # -> 3
     """
     row = conn.execute(
-        "SELECT COUNT(*) FROM photos WHERE date = ? AND device_id = ?",
+        "SELECT COUNT(*) FROM photos WHERE COALESCE(uploaded_on, date) = ? AND device_id = ?",
         (day.isoformat(), device_id),
     ).fetchone()
     return row[0]

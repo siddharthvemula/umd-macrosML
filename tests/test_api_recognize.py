@@ -3,14 +3,17 @@
 # run in milliseconds with no model download and no photo files.
 
 import io
+from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from api.deps import get_scorer
+import api.main
+from api.deps import get_fetcher, get_scorer
 from api.main import MAX_PHOTO_BYTES, app
-from conftest import DEVICE, TODAY
-from db.database import connect, photo_exists, save_menu, save_nutrition
+from conftest import DEVICE, TODAY, OfflineFetcher
+from db.database import connect, get_menu, get_photo_labels, photo_exists, save_menu, save_nutrition
 from scraper.label_parser import NutritionLabel
 from scraper.menu_parser import MenuItem
 
@@ -175,3 +178,139 @@ def test_unknown_hall_is_404(client, scorer):
 def test_missing_photo_is_422(client, scorer):
     response = client.post("/recognize", data={"hall": HALL_ID})
     assert response.status_code == 422
+
+
+# --- Photos from a past day (the `date` form field) ---
+
+PAST = TODAY - timedelta(days=3)
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def seed_menu_on(db_path: str, day: date) -> None:
+    """Like seed_menu, but for another day (nutrition is already shared by dish)."""
+    seed_menu(db_path)
+    conn = connect(db_path)
+    save_menu(conn, day, "Yahentamitsi", [RICE, SALAD, PANCAKES])
+    conn.close()
+
+
+class FixtureFetcher:
+    """Serves a saved real menu page and one saved label for every dish, and counts requests."""
+
+    def __init__(self) -> None:
+        self.menu_requests: list[date] = []
+        self.menu_html = (FIXTURES / "menu_south_campus_2026-10-12.html").read_text()
+        self.label_html = (FIXTURES / "label_banana.html").read_text()
+
+    def fetch_menu_html(self, location_num: int, day: date) -> str:
+        self.menu_requests.append(day)
+        return self.menu_html
+
+    def fetch_label_html(self, recipe_id: str) -> str:
+        return self.label_html
+
+
+class EqualScorer:
+    """Scores every prompt the same, for tests where which dish wins doesn't matter."""
+
+    def score(self, image, texts):
+        return [1.0] * len(texts)
+
+
+def test_date_picks_that_days_menu(client, db_path, scorer):
+    seed_menu_on(db_path, PAST)
+    conn = connect(db_path)
+    save_menu(conn, TODAY, "Yahentamitsi", [PANCAKES])  # today's menu is different
+    conn.close()
+
+    body = post_photo(client, png_bytes(), date=PAST.isoformat(), meal="Lunch").json()
+
+    assert body["date"] == PAST.isoformat()
+    assert [g["name"] for g in body["guesses"]] == ["Rice", "Salad"]
+
+
+def test_photo_is_saved_under_the_plates_date_not_the_upload_date(client, db_path, scorer):
+    seed_menu_on(db_path, PAST)
+    photo_id = post_photo(client, png_bytes(), date=PAST.isoformat()).json()["photo_id"]
+
+    conn = connect(db_path)
+    client.post("/meals", json={"recipe_id": "1*1", "servings": 1, "photo_id": photo_id, "date": PAST.isoformat()})
+    [labels] = get_photo_labels(conn)
+    conn.close()
+    assert labels.date == PAST
+
+
+def test_logging_with_the_plates_date_files_the_meal_under_that_day(client, db_path, scorer):
+    seed_menu_on(db_path, PAST)
+    photo_id = post_photo(client, png_bytes(), date=PAST.isoformat()).json()["photo_id"]
+
+    client.post("/meals", json={"recipe_id": "1*1", "servings": 1, "photo_id": photo_id, "date": PAST.isoformat()})
+
+    assert [log["name"] for log in client.get(f"/meals?date={PAST.isoformat()}").json()] == ["Rice"]
+    assert client.get("/meals").json() == []  # nothing logged today
+
+
+def test_missing_past_menu_is_scraped_automatically(client, db_path, scorer):
+    fetcher = FixtureFetcher()
+    app.dependency_overrides[get_fetcher] = lambda: fetcher
+    app.dependency_overrides[get_scorer] = lambda: EqualScorer()
+
+    body = post_photo(client, png_bytes(), hall="south_campus", date=PAST.isoformat()).json()
+
+    assert fetcher.menu_requests == [PAST]
+    assert len(body["guesses"]) == 5
+    conn = connect(db_path)
+    assert get_menu(conn, PAST, "South Campus")  # saved, so the next photo needs no scrape
+    conn.close()
+
+
+def test_stored_menu_is_not_scraped_again(client, db_path, scorer):
+    seed_menu_on(db_path, PAST)
+    fetcher = FixtureFetcher()
+    app.dependency_overrides[get_fetcher] = lambda: fetcher
+
+    post_photo(client, png_bytes(), date=PAST.isoformat())
+
+    assert fetcher.menu_requests == []
+
+
+def test_failed_scrape_gives_empty_guesses_not_an_error(client, scorer):
+    # conftest's OfflineFetcher fails every download.
+    response = post_photo(client, png_bytes(), date=PAST.isoformat())
+
+    assert response.status_code == 200
+    assert response.json()["guesses"] == []
+    assert response.json()["photo_id"] is None
+
+
+def test_bad_photo_does_not_trigger_a_scrape(client, scorer):
+    fetcher = OfflineFetcher()
+    app.dependency_overrides[get_fetcher] = lambda: fetcher
+
+    assert post_photo(client, b"not a photo", date=PAST.isoformat()).status_code == 400
+    assert fetcher.menu_requests == []
+
+
+def test_future_date_is_400_and_not_scraped(client, scorer):
+    fetcher = OfflineFetcher()
+    app.dependency_overrides[get_fetcher] = lambda: fetcher
+
+    response = post_photo(client, png_bytes(), date=(TODAY + timedelta(days=1)).isoformat())
+
+    assert response.status_code == 400
+    assert "hasn't been served" in response.json()["detail"]
+    assert fetcher.menu_requests == []
+
+
+def test_invalid_date_is_422(client, scorer):
+    assert post_photo(client, png_bytes(), date="last tuesday").status_code == 422
+
+
+def test_daily_cap_counts_the_upload_day_so_old_dates_cannot_dodge_it(client, db_path, scorer, monkeypatch):
+    monkeypatch.setattr(api.main, "MAX_PHOTOS_PER_DAY", 2)
+    seed_menu_on(db_path, PAST)
+    for _ in range(2):
+        assert post_photo(client, png_bytes(), date=PAST.isoformat()).status_code == 200
+
+    assert post_photo(client, png_bytes(), date=PAST.isoformat()).status_code == 429
+    assert post_photo(client, png_bytes()).status_code == 429  # the cap is per upload day, whatever the plate's day

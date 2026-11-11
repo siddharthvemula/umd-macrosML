@@ -1,10 +1,11 @@
 // Tests for the photo screen (PhotoLogView + GuessList). api.js is faked, so no backend or
 // CLIP model runs; we control what "the recognizer" answers and check what we sent it.
 
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, getMenu, logMeal, recognizePhoto } from '../api.js'
+import { todayOnCampus } from '../dates.js'
 import PhotoLogView from './PhotoLogView.jsx'
 
 vi.mock('../api.js', async (importOriginal) => ({
@@ -96,7 +97,7 @@ describe('PhotoLogView', () => {
     await renderAndUpload()
 
     expect(await screen.findByText('Beef Tacos')).toBeInTheDocument()
-    expect(recognizePhoto).toHaveBeenCalledWith(PLATE, 'yahentamitsi', '')
+    expect(recognizePhoto).toHaveBeenCalledWith(PLATE, 'yahentamitsi', '', undefined)
     expect(screen.getByText('31% match')).toBeInTheDocument()
     expect(screen.getByText('<1% match')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Your plate' })).toHaveAttribute('src', 'blob:fake-preview')
@@ -109,7 +110,7 @@ describe('PhotoLogView', () => {
 
     await userEvent.selectOptions(screen.getByLabelText('Meal'), 'Lunch')
 
-    expect(recognizePhoto).toHaveBeenLastCalledWith(PLATE, 'yahentamitsi', 'Lunch')
+    expect(recognizePhoto).toHaveBeenLastCalledWith(PLATE, 'yahentamitsi', 'Lunch', undefined)
   })
 
   it('logs a guess at its suggested portion and tells App', async () => {
@@ -122,7 +123,7 @@ describe('PhotoLogView', () => {
     await userEvent.click(within(tacoButtons).getByRole('button', { name: 'Log 1.5x' }))
 
     // 7 is the photo_id from the recognize result: this log becomes a training label.
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 7, 1.5)
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 7, 1.5, undefined)
     expect(await screen.findByText('Logged 1.5x Beef Tacos (376 cal).')).toBeInTheDocument()
     expect(onLogged).toHaveBeenCalledTimes(1)
   })
@@ -140,7 +141,7 @@ describe('PhotoLogView', () => {
 
     await userEvent.click(within(tacos).getByRole('button', { name: 'Fewer servings' }))
     await userEvent.click(within(tacos).getByRole('button', { name: 'Log 1.25x' }))
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.25, 7, 1.5)  // chosen 1.25, suggested 1.5
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.25, 7, 1.5, undefined)  // chosen 1.25, suggested 1.5
   })
 
   it("links logs to the newest photo's id after a re-analyze", async () => {
@@ -153,7 +154,7 @@ describe('PhotoLogView', () => {
     const tacoButtons = await screen.findByRole('group', { name: 'Log Beef Tacos' })
     await userEvent.click(within(tacoButtons).getByRole('button', { name: 'Log 1.5x' }))
 
-    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 8, 1.5)
+    expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 8, 1.5, undefined)
   })
 
   it('logs a dish the recognizer missed from the menu search, linked to the photo', async () => {
@@ -169,8 +170,8 @@ describe('PhotoLogView', () => {
     // Searched dishes have no CLIP suggestion, so they start at 1x.
     await userEvent.click(within(riceButtons).getByRole('button', { name: 'Log 1x' }))
 
-    expect(getMenu).toHaveBeenCalledWith('yahentamitsi')
-    expect(logMeal).toHaveBeenCalledWith('333*1', 1, 7, undefined)  // search: no suggestion
+    expect(getMenu).toHaveBeenCalledWith('yahentamitsi', undefined)
+    expect(logMeal).toHaveBeenCalledWith('333*1', 1, 7, undefined, undefined)  // search: no suggestion
   })
 
   it('does not list a dish twice when it is already a guess', async () => {
@@ -242,5 +243,79 @@ describe('PhotoLogView', () => {
     expect(cards[0]).toHaveTextContent('1Beef Tacos31% match')
     expect(cards[0]).toHaveTextContent('250 cal · 14g protein · 20g carbs · 12g fat per serving')
     expect(cards[1]).toHaveTextContent('2Pico de Gallo<1% match')
+  })
+
+  describe('date picker', () => {
+    // Always before today, so the tests don't depend on the day they run.
+    const PAST_DAY = '2026-01-05'
+
+    it('defaults to today and does not allow later days', () => {
+      render(<PhotoLogView hallId="yahentamitsi" />)
+
+      const picker = screen.getByLabelText('Day')
+      expect(picker).toHaveValue(todayOnCampus())
+      expect(picker).toHaveAttribute('max', todayOnCampus())
+    })
+
+    it('sends the chosen past day with the photo, so the guesses come from that day', async () => {
+      recognizePhoto.mockResolvedValue(resultOf([TACOS]))
+      render(<PhotoLogView hallId="yahentamitsi" />)
+
+      fireEvent.change(screen.getByLabelText('Day'), { target: { value: PAST_DAY } })
+      await userEvent.upload(screen.getByLabelText(/plate photo/i), PLATE)
+
+      await screen.findByText('Beef Tacos')
+      expect(recognizePhoto).toHaveBeenCalledWith(PLATE, 'yahentamitsi', '', PAST_DAY)
+    })
+
+    it('re-analyzes the photo against the new day when the day changes', async () => {
+      recognizePhoto.mockResolvedValue(resultOf([TACOS]))
+      await renderAndUpload()
+      await screen.findByText('Beef Tacos')
+
+      fireEvent.change(screen.getByLabelText('Day'), { target: { value: PAST_DAY } })
+
+      await screen.findByText('Beef Tacos')
+      expect(recognizePhoto).toHaveBeenCalledTimes(2)
+      expect(recognizePhoto).toHaveBeenLastCalledWith(PLATE, 'yahentamitsi', '', PAST_DAY)
+    })
+
+    it('files a logged dish under the chosen day and says so', async () => {
+      recognizePhoto.mockResolvedValue(resultOf([TACOS]))
+      logMeal.mockResolvedValue({ id: 1, calories: 250 })
+      render(<PhotoLogView hallId="yahentamitsi" />)
+      fireEvent.change(screen.getByLabelText('Day'), { target: { value: PAST_DAY } })
+      await userEvent.upload(screen.getByLabelText(/plate photo/i), PLATE)
+
+      const tacoButtons = await screen.findByRole('group', { name: 'Log Beef Tacos' })
+      await userEvent.click(within(tacoButtons).getByRole('button', { name: 'Log 1.5x' }))
+
+      expect(logMeal).toHaveBeenCalledWith('111*1', 1.5, 7, 1.5, PAST_DAY)
+      expect(await screen.findByText('Logged 1.5x Beef Tacos (250 cal) on Jan 5.')).toBeInTheDocument()
+    })
+
+    it("searches that day's menu for a dish the recognizer missed", async () => {
+      recognizePhoto.mockResolvedValue(resultOf([TACOS]))
+      getMenu.mockResolvedValue({ items: [TACOS_ON_MENU] })
+      render(<PhotoLogView hallId="yahentamitsi" />)
+      fireEvent.change(screen.getByLabelText('Day'), { target: { value: PAST_DAY } })
+      await userEvent.upload(screen.getByLabelText(/plate photo/i), PLATE)
+
+      await userEvent.click(await screen.findByRole('button', { name: "Not listed? Search that day's menu" }))
+
+      expect(getMenu).toHaveBeenCalledWith('yahentamitsi', PAST_DAY)
+    })
+
+    it('goes back to today when the field is cleared, and ignores a later day', async () => {
+      recognizePhoto.mockResolvedValue(resultOf([TACOS]))
+      await renderAndUpload()
+      await screen.findByText('Beef Tacos')
+      const picker = screen.getByLabelText('Day')
+
+      fireEvent.change(picker, { target: { value: '' } })
+      expect(picker).toHaveValue(todayOnCampus())
+      fireEvent.change(picker, { target: { value: '2999-01-01' } })
+      expect(picker).toHaveValue(todayOnCampus())
+    })
   })
 })
