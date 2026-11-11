@@ -267,3 +267,7 @@ One or two lines per real choice: what we picked, what we didn't, and why.
 - **Known limit: no cap on how many different past dates trigger a scrape.** Each missing day costs UMD one menu request plus labels for dishes we haven't seen, but only for a valid photo, and the 20-photos-a-day cap applies. Revisit if it's used by many students.
 - **Tests: 310 (209 pytest + 101 Vitest), up from 288.** New ones cover the date picking the menu, the auto-scrape (and not scraping when the menu is stored, the photo is bad, or the date is in the future), a failed scrape, the cap, and the picker/logging in the UI.
 
+
+## Export and eval read docker-data/ by default
+- **`ml.export_training_data` and `ml.evaluate` use `TOOLS_DB_PATH` / `TOOLS_PHOTO_DIR` (config.py): env var first, else `docker-data/` if it exists, else `data/` and `ml/training_photos/`.** Real plates are saved by the Dockerized app, so the local `data/macros.db` had 0 photos and the export came out empty.
+- **Only these offline tools got the new default, not `DB_PATH`.** The app and scraper keep their old paths so a leftover `docker-data/` folder can never silently redirect them. Tests: 212 pytest (+3 for the path choice).

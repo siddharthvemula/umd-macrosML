@@ -16,10 +16,10 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from db.database import DEFAULT_DB_PATH, connect, get_menu
+from config import TOOLS_DB_PATH, TOOLS_PHOTO_DIR
+from db.database import connect, get_menu
 from ml.candidates import is_candidate
 from ml.export_training_data import TRAINING_LABELS_PATH
-from ml.photo_store import DEFAULT_PHOTO_DIR
 from ml.recognizer import BadPhotoError, Guess, ImageTextScorer, load_photo, rank_menu_items
 
 EVAL_DIR = Path(__file__).parent / "eval_photos"
@@ -286,10 +286,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Score the plate recognizer on labeled photos.")
     parser.add_argument(
         "--training", action="store_true",
-        help="use photos logged in the app (ml/training_photos/) instead of ml/eval_photos/",
+        help="use photos logged in the app (docker-data/photos/ if it exists, else ml/training_photos/) instead of ml/eval_photos/",
     )
     args = parser.parse_args()
-    labels_path, photo_dir = (TRAINING_LABELS_PATH, DEFAULT_PHOTO_DIR) if args.training else (LABELS_PATH, EVAL_DIR)
+    labels_path, photo_dir = (TRAINING_LABELS_PATH, TOOLS_PHOTO_DIR) if args.training else (LABELS_PATH, EVAL_DIR)
 
     if not labels_path.exists():
         print(f"No {labels_path}. Run: .venv/bin/python -m ml.export_training_data")
@@ -299,7 +299,7 @@ def main() -> None:
         print(f"No usable labeled photos in {labels_path.name} yet.")
         return
 
-    conn = connect(str(DEFAULT_DB_PATH))
+    conn = connect(str(TOOLS_DB_PATH))
     scorer = ClipScorer()  # load once (~600 MB), reuse for every photo and wording
     for template in TEMPLATES:
         results = evaluate(photos, scorer, conn, template, photo_dir)

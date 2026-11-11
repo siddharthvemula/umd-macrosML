@@ -4,17 +4,18 @@
 # on real use (`--training`) and Phase 5 fine-tuning can read the same file.
 #
 # Run: .venv/bin/python -m ml.export_training_data
+# Reads docker-data/ (the Dockerized app's database and photos) when it exists; see config.py.
 
 import csv
 import sqlite3
 from pathlib import Path
 
-from db.database import DEFAULT_DB_PATH, PhotoLabels, connect, get_photo_labels
-from ml.photo_store import DEFAULT_PHOTO_DIR
+from config import TOOLS_DB_PATH, TOOLS_PHOTO_DIR
+from db.database import PhotoLabels, connect, get_photo_labels
 
 # Next to the photos, so it's gitignored with them (the dish names alone aren't private,
 # but the file is useless without the photos, and it's rebuilt from the database anyway).
-TRAINING_LABELS_PATH = DEFAULT_PHOTO_DIR / "labels.csv"
+TRAINING_LABELS_PATH = TOOLS_PHOTO_DIR / "labels.csv"
 COLUMNS = ["photo", "date", "hall", "meal", "dishes", "notes"]
 
 
@@ -63,7 +64,7 @@ def export_training_data(conn: sqlite3.Connection, path: Path = TRAINING_LABELS_
 
 def main() -> None:
     """Export from the real database and say how many photos were written."""
-    conn = connect(str(DEFAULT_DB_PATH))
+    conn = connect(str(TOOLS_DB_PATH))
     count = export_training_data(conn)
     conn.close()
     print(f"Wrote {count} labeled photo(s) to {TRAINING_LABELS_PATH}")
