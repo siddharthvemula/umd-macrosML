@@ -6,6 +6,7 @@
 - 288 tests pass (198 pytest + 90 Vitest).
 - Added 2026-10-23: condiment filter for CLIP, portion stepper with CLIP portion suggestions, `scripts/demo.sh`. Menus scraped through 2026-10-30.
 - Eval set is 11 labeled plates (2026-11-04): top-1 54.5% / top-3 72.7% / recall@5 38.5%. Menus scraped through 2026-11-04.
+- Phase B (2026-11-10): tried ingredients in the prompt, prompt-wording ensembles and meal-only candidates; none beat the baseline, so no code changed (see DECISIONS.md).
 - Not hosted yet. To share it, run it in Docker on the Mac and expose it with a temporary Cloudflare tunnel.
 
 ## Demo in one command
